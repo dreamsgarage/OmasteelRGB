@@ -102,7 +102,11 @@ v1.1: native Apex HID in the same Python bridge.
 
 On the reference machine `/dev/hidraw0` and `/dev/hidraw1` are `root:root 600`.
 
-Ship `99-steelseries-keyboard.rules` matching vendor `1038` keyboard PIDs, `MODE="0660"`, `GROUP="input"` (or `plugdev`). Document: copy to `/etc/udev/rules.d/`, reload, trigger. Do **not** install the rule during `omarchy plugin add`. The panel shows a “grant access” action that opens a terminal with the exact commands.
+Ship `99-steelseries-keyboard.rules` matching vendor `1038` keyboard PIDs with `TAG+="uaccess"`.
+
+> **Use `uaccess`, not `GROUP="input"`.** `uaccess` grants an ACL to the user of the active login session, so it
+> needs no group membership and no re-login. The original `GROUP="input"` proposal would have granted nothing on
+> the reference machine, whose user is not in `input`. See [../udev/99-steelseries-keyboard.rules](../udev/99-steelseries-keyboard.rules). Document: copy to `/etc/udev/rules.d/`, reload, trigger. Do **not** install the rule during `omarchy plugin add`. The panel shows a “grant access” action that opens a terminal with the exact commands.
 
 hidapi: prefer **libusb backend** for KLC. Detach the kernel driver only on the RGB interface, never on the typing interface. Refuse to run the bridge as root.
 

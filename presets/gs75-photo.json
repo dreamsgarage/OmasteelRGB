@@ -1,14 +1,14 @@
 {
   "id": "gs75-photo",
   "name": "GS75 photo fixture",
-  "description": "v1 acceptance map extracted from docs/assets/keyboard.png. Cyan base, red navigation and a few named keys. Numpad digits stay on the base color.",
+  "description": "v1 acceptance map extracted from docs/assets/keyboard.png. Blue-violet base, red navigation and a few named keys. Numpad digits stay on the base color. Validated on hardware 2026-09-12.",
   "hardware": {
     "model": "GS75",
     "usb": "1038:1122",
     "layout": "iso-es-physical"
   },
   "brightness": 100,
-  "base": "#00b4ff",
+  "base": "#4a5cff",
   "groups": {
     "nav": "#ff2a2a",
     "arrows": "#ff2a2a",
@@ -19,5 +19,9 @@
     "Tab": "#ff2a2a",
     "Fn": "#ff2a2a",
     "Super": "#ff2a2a"
+  },
+  "notes": {
+    "base_color": "Originally specced #00b4ff (hue 198, cyan). Hardware validation showed the real profile was blue-violet; photometric analysis of isolated regions of the reference photo gives hue 228-235. Corrected to #4a5cff. The photo carries a camera blue-cast, so treat this as an estimate - the original onboard profile is unrecoverable.",
+    "nav_group": "On the GS75 the nav group is 4 keys, not 6. X11 keycodes 110 (Home) and 115 (End) are absent from the upstream GE63-family keymap because they are Fn-layer functions with no dedicated LED."
   }
 }

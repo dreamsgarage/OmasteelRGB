@@ -3,7 +3,8 @@
 Omarchy 4 plugin **specs and design** for SteelSeries keyboard lighting.
 
 Plugin id (when implemented): `steelseries.keyboard`  
-Status: **v1 spec approved** — this repository currently ships design documents, not plugin code.
+Status: **v1 spec approved, protocol validated on hardware 2026-09-12** — this repository ships design documents
+and tested colour maps, not plugin code yet.
 
 ## What this is
 
@@ -16,7 +17,7 @@ Typing already works. The gap is lighting. The laptop keyboard currently replays
 
 ## v1 in one sentence
 
-Steady (non-animated) colors, **many colors at once**, as a stack of base fill + named groups + per-key overrides — matching the reference photo, not a single wash across the board.
+Steady (non-animated) colors, **many colors at once**, as a stack of base fill + named groups + per-key overrides — matching the reference photo, not a single wash across the board. **Confirmed working on real hardware.**
 
 ## Documents
 
@@ -25,13 +26,19 @@ Steady (non-animated) colors, **many colors at once**, as a stack of base fill +
 | [docs/v1-spec.md](docs/v1-spec.md) | Product definition, lighting model, capabilities, non-goals |
 | [docs/v1-design.md](docs/v1-design.md) | Architecture, backends, UX, safety, install shape |
 | [docs/v1-acceptance.md](docs/v1-acceptance.md) | Photo fixture, `gs75-photo` map, hardware checks |
-| [docs/approved-plan.md](docs/approved-plan.md) | Full approved plan as captured |
+| [docs/v1-implementation-guide.md](docs/v1-implementation-guide.md) | **Build order, protocol details, gotchas** |
+| [docs/approved-plan.md](docs/approved-plan.md) | Full approved plan as captured (historical) |
 | [presets/gs75-photo.json](presets/gs75-photo.json) | Machine-readable acceptance preset |
+| [presets/gs75-custom.json](presets/gs75-custom.json) | Daily map: full red top row |
+| [presets/perkeyrgb/](presets/perkeyrgb/) | Same maps as msi-perkeyrgb configs (hardware-tested) |
+| [udev/99-steelseries-keyboard.rules](udev/99-steelseries-keyboard.rules) | hidraw access via `uaccess` |
 | [docs/assets/keyboard.png](docs/assets/keyboard.png) | Reference photo of the Windows-saved layout |
 
 ## Reference photo
 
-![GS75 SteelSeries KLC: cyan base, red Esc/Tab/Fn/Win/nav/numpad ops](docs/assets/keyboard.png)
+![GS75 SteelSeries KLC: blue-violet base, red Esc/Tab/Fn/Win/nav/numpad ops](docs/assets/keyboard.png)
+
+The base colour reads cyan in this photo but is actually blue-violet (`#4a5cff`); the camera carries a blue-cast.
 
 ## Not in this repo yet
 

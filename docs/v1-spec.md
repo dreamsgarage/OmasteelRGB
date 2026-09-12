@@ -20,7 +20,7 @@ Typing already works through HID. This product does not replace `omarchy.keyboar
 
 **“Solid” means steady (non-animated), not one color for the whole board.**
 
-Each key or group holds its own fixed hex. The reference photo uses two colors (cyan + red). v1 is **not** capped at two. Any number of distinct solid colors is valid (WASD green, arrows amber, Esc red, rest cyan, and so on).
+Each key or group holds its own fixed hex. The reference photo uses two colors (blue-violet + red). v1 is **not** capped at two. Any number of distinct solid colors is valid (WASD green, arrows amber, Esc red, rest blue, and so on).
 
 v1 does **not** write breathe, wave, reactive, or other hardware animation packets.
 
@@ -42,7 +42,7 @@ Brightness is a global 0–100 scale applied after the map.
 |---|---|
 | `wasd` | W A S D |
 | `arrows` | Up Down Left Right |
-| `nav` | Ins Home PgUp Del End PgDn |
+| `nav` | Ins PgUp Del PgDn (4 keys on GS75 - see note) |
 | `numpad` | numpad digits, numpad Enter, numpad Del |
 | `numpad_ops` | NumLock `/` `*` `-` `+` |
 | `num_row` | `` ` `` 1–0 `-` `=` |
@@ -52,12 +52,20 @@ Brightness is a global 0–100 scale applied after the map.
 | `enter_esc` | Enter Esc |
 | `characters` | letter/punctuation block excluding num row |
 
+> **`nav` is 4 keys on this hardware, not 6.** X11 keycodes 110 (`Home`) and 115 (`End`) are absent from the
+> GE63-family keymap: on the GS75 they are Fn-layer functions with no dedicated LED and cannot be addressed.
+> Hardware-validated 2026-09-12.
+
+> **Group precedence is undefined between overlapping groups** (`wasd` is a subset of `characters`,
+> `numpad_ops` overlaps `numpad`). The stack rule "later layers win" only orders base -> groups -> per-key.
+> An explicit within-layer rule is required: declared order, or smallest-group-wins specificity.
+
 ### Photo profile (must be representable and writable)
 
 See [v1-acceptance.md](v1-acceptance.md) and [../presets/gs75-photo.json](../presets/gs75-photo.json).
 
 ```text
-all          #00b4ff
+all          #4a5cff
 nav          #ff2a2a
 arrows       #ff2a2a
 numpad_ops   #ff2a2a
