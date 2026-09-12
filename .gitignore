@@ -6,3 +6,8 @@
 __pycache__/
 *.pyc
 .env
+
+# dev-only; the bridge itself needs stdlib + hidapi only
+.venv/
+.venv-*/
+.pytest_cache/
