@@ -31,7 +31,7 @@ Steady (non-animated) colors, **many colors at once**, as a stack of base fill +
 | [presets/gs75-photo.json](presets/gs75-photo.json) | Machine-readable acceptance preset |
 | [presets/gs75-custom.json](presets/gs75-custom.json) | Daily map: full red top row |
 | [presets/perkeyrgb/](presets/perkeyrgb/) | Same maps as msi-perkeyrgb configs (hardware-tested) |
-| [udev/99-steelseries-keyboard.rules](udev/99-steelseries-keyboard.rules) | hidraw access via `uaccess` |
+| [udev/70-steelseries-klc.rules](udev/70-steelseries-klc.rules) | hidraw access via `uaccess`, no sudo at runtime |
 | [docs/assets/keyboard.png](docs/assets/keyboard.png) | Reference photo of the Windows-saved layout |
 
 ## Reference photo

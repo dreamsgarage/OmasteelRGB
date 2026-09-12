@@ -1,0 +1,25 @@
+# omastellrgb - hidraw access for SteelSeries KLC keyboard lighting
+#
+# THE FILE NUMBER MATTERS. /usr/lib/udev/rules.d/73-seat-late.rules runs the
+# uaccess builtin at priority 73:
+#     TAG=="uaccess|xaccess-*", ENV{MAJOR}!="", RUN{builtin}+="uaccess"
+# A TAG+="uaccess" set in a 99-*.rules file is evaluated AFTER that line, so the
+# tag appears in CURRENT_TAGS but the builtin never runs and the node stays
+# root:root 0600. Any number below 73 works; stock rules use 70.
+#
+# uaccess grants an ACL to the user of the active login session only. Do not use
+# MODE="0666" on a keyboard's raw HID node - that lets any local process read
+# keystrokes from it.
+#
+# Install:
+#   sudo cp 70-steelseries-klc.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload
+#   sudo udevadm trigger --subsystem-match=hidraw --action=add
+#
+# Verify:
+#   getfacl /dev/hidraw0        -> user:<you>:rw-
+#   udevadm info /dev/hidraw0   -> CURRENT_TAGS=:seat:uaccess:
+#
+# idVendor and idProduct both live on the same USB parent, so one ATTRS match is valid.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="1122", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="113a", TAG+="uaccess"

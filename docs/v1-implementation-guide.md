@@ -106,9 +106,17 @@ the touchpad. Verify: `1038:1122`, two interfaces, `hid-generic`.
 
 ### Phase 2 — permissions
 
-Ship [../udev/99-steelseries-keyboard.rules](../udev/99-steelseries-keyboard.rules) using `TAG+="uaccess"`.
+Ship [../udev/70-steelseries-klc.rules](../udev/70-steelseries-klc.rules) using `TAG+="uaccess"`.
 Do **not** copy it into `/etc` during `omarchy plugin add`. The panel shows a "grant access" state with the exact
 commands for the user to run.
+
+**The rule file must sort below 73.** `73-seat-late.rules` runs the `uaccess` builtin at priority 73, so a tag set
+in a `99-*` file arrives too late: the tag appears in `CURRENT_TAGS`, the builtin never runs, and the node stays
+`root:root 0600`. Silent failure. Also remove `/etc/udev/rules.d/99-msi-rgb.rules` if the `msi-perkeyrgb` AUR
+package installed it — `MODE="0666"` on a keyboard HID node exposes keystrokes to any local process.
+
+After installing: `udevadm control --reload` **and** `udevadm trigger --subsystem-match=hidraw --action=add`.
+udev never applies rules to existing nodes retroactively.
 
 The bridge must refuse to run as root.
 

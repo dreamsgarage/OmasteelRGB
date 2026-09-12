@@ -1,5 +1,0 @@
-# omastellrgb - hidraw access for SteelSeries keyboard lighting
-# TAG+="uaccess" grants an ACL to the user of the active login session:
-# no group membership and no re-login required, unlike GROUP="input".
-KERNEL=="hidraw*", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="1122", TAG+="uaccess"
-KERNEL=="hidraw*", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="113a", TAG+="uaccess"

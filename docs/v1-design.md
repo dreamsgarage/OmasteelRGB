@@ -45,7 +45,7 @@ Planned implementation layout (mirrors OmaRGB so `omarchy plugin validate` is ha
 - `Panel.qml`
 - `Model.js`
 - `bridge/` Python (stdlib + hidapi for KLC)
-- `udev/99-steelseries-keyboard.rules` (documented; not auto-copied into `/etc`)
+- `udev/70-steelseries-klc.rules` (documented; not auto-copied into `/etc`)
 - `tests/` for packet builders and JSON protocol against a fake hid device
 
 Python 3 is already on Omarchy. hidapi is extra (`python-hidapi` / `hidapi`). OpenRGB is optional.
@@ -102,11 +102,25 @@ v1.1: native Apex HID in the same Python bridge.
 
 On the reference machine `/dev/hidraw0` and `/dev/hidraw1` are `root:root 600`.
 
-Ship `99-steelseries-keyboard.rules` matching vendor `1038` keyboard PIDs with `TAG+="uaccess"`.
+Ship `70-steelseries-klc.rules` matching vendor `1038` keyboard PIDs with `TAG+="uaccess"`.
 
 > **Use `uaccess`, not `GROUP="input"`.** `uaccess` grants an ACL to the user of the active login session, so it
 > needs no group membership and no re-login. The original `GROUP="input"` proposal would have granted nothing on
-> the reference machine, whose user is not in `input`. See [../udev/99-steelseries-keyboard.rules](../udev/99-steelseries-keyboard.rules). Document: copy to `/etc/udev/rules.d/`, reload, trigger. Do **not** install the rule during `omarchy plugin add`. The panel shows a “grant access” action that opens a terminal with the exact commands.
+> the reference machine, whose user is not in `input`.
+>
+> **The file number is load-bearing: it must sort below 73.** `/usr/lib/udev/rules.d/73-seat-late.rules` runs
+> `RUN{builtin}+="uaccess"` at priority 73. A `TAG+="uaccess"` set in a `99-*` file is evaluated after that line,
+> so the tag shows up in `CURRENT_TAGS` while the builtin never fires and the node stays `root:root 0600`. This
+> failure is silent and looks exactly like a seat problem. Stock rules use 70; see
+> [../udev/70-steelseries-klc.rules](../udev/70-steelseries-klc.rules).
+>
+> **Never ship `MODE="0666"` for these nodes.** The `msi-perkeyrgb` AUR package installs
+> `/etc/udev/rules.d/99-msi-rgb.rules` with world read/write on the keyboard's raw HID interfaces, which lets any
+> local process read keystrokes. Remove it when installing this rule.
+>
+> udev never applies rules retroactively: after installing, `udevadm control --reload` **and**
+> `udevadm trigger --subsystem-match=hidraw --action=add` are both required, or the change takes effect only at
+> next boot. Document: copy to `/etc/udev/rules.d/`, reload, trigger. Do **not** install the rule during `omarchy plugin add`. The panel shows a “grant access” action that opens a terminal with the exact commands.
 
 hidapi: prefer **libusb backend** for KLC. Detach the kernel driver only on the RGB interface, never on the typing interface. Refuse to run the bridge as root.
 
