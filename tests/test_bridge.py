@@ -185,9 +185,56 @@ def test_brightness_range_is_enforced(value):
     assert response["ok"] is False
 
 
-def test_locked_device_reports_needs_access_with_a_fix():
-    """On a machine without the udev rule, apply must explain the fix."""
+def test_locked_device_reports_needs_access_with_a_fix(monkeypatch):
+    """On a machine without the udev rule, apply must explain the fix.
+
+    The device is faked as present-but-locked so this never opens hardware.
+    Sending a real apply and skipping if it succeeds would, on a machine where
+    access works, overwrite the map the controller is replaying."""
+    from bridge import detect
+    monkeypatch.setattr(detect, "scan", lambda: [{
+        "id": "1038:1122", "kind": "klc", "product_id": 0x1122, "accessible": False,
+        "status": "needs-access",
+        "hint": "Install udev/70-steelseries-klc.rules, then udevadm control --reload",
+    }])
     response = run(['{"cmd":"apply","profile":{"base":"#4a5cff"}}'])[0]
-    if response["ok"]:
-        pytest.skip("hidraw is already accessible on this machine")
-    assert "70-steelseries-klc.rules" in response["error"] or "no SteelSeries" in response["error"]
+    assert response["ok"] is False
+    assert response["needsAccess"] is True
+    assert "70-steelseries-klc.rules" in response["error"]
+
+
+# --- presets and the snapshot contract ------------------------------------
+
+def test_presets_are_listed_with_profile_split_from_metadata():
+    response = run(['{"cmd":"presets"}'])[0]
+    assert response["ok"] is True
+    ids = [p["id"] for p in response["presets"]]
+    assert "gs75-photo" in ids
+    assert "gs75-custom" in ids
+    photo = next(p for p in response["presets"] if p["id"] == "gs75-photo")
+    assert set(photo["profile"]) <= set(bridge_mod.PROFILE_FIELDS)
+    assert "notes" not in photo["profile"]
+    assert photo["profile"]["base"] == "#4a5cff"
+    assert photo["model"] == "GS75"
+
+
+def test_apply_snapshots_only_the_layer_stack(bridge, monkeypatch):
+    """A preset document carries notes and provenance; the snapshot must not."""
+    monkeypatch.setattr(bridge, "klc_device", lambda: {"id": "1038:1122", "product_id": 0x1122})
+    monkeypatch.setattr(bridge, "write", lambda profile, device=None: {"keys": 1, "reports": 2})
+    doc = {"base": "#4a5cff", "notes": {"x": "y"}, "hardware": {"model": "GS75"}, "brightness": 100}
+    response = bridge.handle({"cmd": "apply", "profile": doc})
+    assert response["ok"] is True
+    assert snapshot.load()["profile"] == {"base": "#4a5cff", "brightness": 100}
+
+
+def test_ready_handshake_is_opt_in():
+    """Service.qml passes --ready and waits for the event before writing, so a
+    request queued during process start-up is never lost. Plain runs, and
+    these tests, must not see it."""
+    out = io.StringIO()
+    bridge_mod.main(stdin=io.StringIO('{"cmd":"detect","id":1}\n'), stdout=out, argv=["--ready"])
+    lines = [json.loads(line) for line in out.getvalue().splitlines()]
+    assert lines[0] == {"ok": True, "event": "ready"}
+    assert lines[1]["id"] == 1
+    assert "event" not in run(['{"cmd":"detect"}'])[0]

@@ -32,6 +32,15 @@ QML has no TCP/HID. Follow OmaRGB: spawn a Python bridge, exchange JSON lines, r
 - `barWidget.schema`: `themeSync` (bool, false), `vividAccent` (bool, true), `apexBackend` (bool, true)
 - No symlinks in the plugin folder
 
+> **Implementation note (2026-09-21).** The shipped manifest declares `kinds: ["bar-widget"]` only, and
+> `Service.qml` is instantiated inside `Panel.qml` — the shape of the first-party `panels/dropbox` plugin,
+> which also wraps a Python helper. A separately mounted `service` kind would have to be found from the
+> widget through `shell.serviceFor()`, which the host scopes per plugin and which no third-party plugin was
+> found exercising; the media widget uses `firstPartyServiceFor()`, unavailable to us. Keeping the service
+> inside the widget removes that lookup entirely, and the widget is mounted for as long as the plugin is
+> enabled, so the bridge's lifetime is the same either way. `Service.qml` stays a separate file so the split
+> can be revisited without moving code.
+
 Install later (not this spec drop):
 
 ```text

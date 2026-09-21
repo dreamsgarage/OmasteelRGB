@@ -20,6 +20,18 @@
 #   getfacl /dev/hidraw0        -> user:<you>:rw-
 #   udevadm info /dev/hidraw0   -> CURRENT_TAGS=:seat:uaccess:
 #
+# MODE is set explicitly, not left to the default. udev only chmods a node when
+# some rule computes a mode; with none, an existing node keeps whatever it had.
+# So after removing the msi-perkeyrgb package's 99-msi-rgb.rules (MODE="0666"),
+# a reload + trigger with a MODE-less rule leaves the keyboard world-writable
+# until the next boot recreates the node. Verified on systemd 261.
+#
+# It is 0660, not 0600. Once a node carries an ACL, its group bits are the ACL
+# mask: 0600 masks the uaccess entry down to "#effective:---" and the user
+# still cannot open the device. 0660 leaves "other" with nothing while the
+# session user's ACL takes effect. This is the same MODE + uaccess pairing the
+# stock 60-steam-input.rules use.
+#
 # idVendor and idProduct both live on the same USB parent, so one ATTRS match is valid.
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="1122", TAG+="uaccess"
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="113a", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="1122", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="113a", MODE="0660", TAG+="uaccess"

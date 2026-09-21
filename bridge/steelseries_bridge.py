@@ -33,6 +33,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from bridge import detect, keymap as keymap_mod, klc_hid, model, snapshot  # noqa: E402
 
 DEFAULT_MODEL = "GS75"
+PRESET_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "presets")
+# The layer stack. Everything else in a preset document is metadata.
+PROFILE_FIELDS = ("base", "groups", "keys", "brightness")
 
 
 class Bridge:
@@ -122,10 +125,41 @@ class Bridge:
                        "existing map off the controller, so there is nothing to restore.",
         }
 
+    def cmd_presets(self, _req):
+        """The colour maps shipped in presets/*.json, with metadata split from
+        the applicable profile so a caller can hand the profile straight back
+        to `apply`."""
+        out = []
+        if os.path.isdir(PRESET_DIR):
+            for name in sorted(os.listdir(PRESET_DIR)):
+                if not name.endswith(".json"):
+                    continue
+                try:
+                    with open(os.path.join(PRESET_DIR, name), "r", encoding="utf-8") as fh:
+                        doc = json.load(fh)
+                except (OSError, ValueError):
+                    continue
+                if not isinstance(doc, dict):
+                    continue
+                profile = {k: doc[k] for k in PROFILE_FIELDS if k in doc}
+                if not any(k in profile for k in ("base", "groups", "keys")):
+                    continue
+                out.append({
+                    "id": doc.get("id") or name[:-5],
+                    "name": doc.get("name") or name[:-5],
+                    "description": doc.get("description") or "",
+                    "model": (doc.get("hardware") or {}).get("model"),
+                    "profile": profile,
+                })
+        return {"presets": out}
+
     def cmd_apply(self, req):
         profile = req.get("profile")
         if not isinstance(profile, dict):
             raise ValueError("apply needs a 'profile' object")
+        # The snapshot is the layer stack and nothing else; a preset document's
+        # notes and provenance must not ride along into it.
+        profile = {k: v for k, v in profile.items() if k in PROFILE_FIELDS}
         device = self.klc_device()
         result = self.write(profile, device)
         snapshot.save(profile, device_id=device["id"])
@@ -195,6 +229,7 @@ class Bridge:
 
     HANDLERS = {
         "detect": cmd_detect, "state": cmd_state, "keymap": cmd_keymap,
+        "presets": cmd_presets,
         "apply": cmd_apply, "set_base": cmd_set_base, "set_group": cmd_set_group,
         "set_key": cmd_set_key, "brightness": cmd_brightness,
         "off": cmd_off, "restore": cmd_restore,
@@ -233,7 +268,7 @@ class Bridge:
         return response
 
 
-def main(stdin=None, stdout=None):
+def main(stdin=None, stdout=None, argv=None):
     if os.geteuid() == 0:
         sys.stderr.write(
             "omastellrgb: refusing to run as root. Install udev/70-steelseries-klc.rules "
@@ -242,7 +277,15 @@ def main(stdin=None, stdout=None):
 
     stdin = stdin or sys.stdin
     stdout = stdout or sys.stdout
+    argv = sys.argv[1:] if argv is None else argv
     bridge = Bridge()
+
+    # Service.qml queues requests until it sees this, because data written to
+    # a process that has not finished starting is dropped. Opt-in so plain
+    # pipelines and the tests keep one response per request.
+    if "--ready" in argv:
+        stdout.write(json.dumps({"ok": True, "event": "ready"}) + "\n")
+        stdout.flush()
 
     for line in stdin:
         line = line.strip()
