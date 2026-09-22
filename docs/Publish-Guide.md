@@ -5,14 +5,21 @@ each release. Verified on Omarchy 4.0.4 on 2026-09-21.
 
 ## What publishing means for an Omarchy plugin
 
-Omarchy 4 has no central plugin registry. A plugin is published by having a public git repository that
-`omarchy plugin add` can clone:
+Two layers, and they are independent:
 
-```bash
-omarchy plugin add https://github.com/dreamsgarage/OmasteelRGB.git --enable
-```
+1. **Installable from git.** Any public git URL works with `omarchy plugin add`; there is no gatekeeper.
+   This is what the checks below verify, and OmasteelRGB is already installable this way:
 
-Reading `omarchy-plugin-add` (in `/usr/share/omarchy/bin`, on PATH) shows what that does:
+   ```bash
+   omarchy plugin add https://github.com/dreamsgarage/OmasteelRGB.git --enable
+   ```
+
+2. **Listed on the marketplace.** Omarchy has an official community marketplace at
+   <https://plugins.omarchy.org> (source and registry: <https://github.com/omacom/omarchy-plugin-marketplace>,
+   about 3,750 sources listed as of 2026-09-21). Listing is by GitHub issue, reviewed by maintainers. It is
+   optional, but it is where users browse, and the Okomart plugin manager reads the same catalog.
+
+Reading `omarchy-plugin-add` (in `/usr/share/omarchy/bin`, on PATH) shows what an install does:
 
 1. Warns the user that plugins run unsandboxed inside `omarchy-shell` and asks to confirm.
 2. Clones the URL into a staging folder under `~/.config/omarchy/plugins/`.
@@ -27,8 +34,88 @@ rolls back if validation fails. It refuses if the checkout cannot fast-forward. 
 - **Never force-push `main`.** Every installed copy tracks it and a rewritten history breaks their update.
 - The repository must stay valid at every commit on `main`, not only at tags.
 
-So "publishing" is: the repository is public, `main` validates, the README explains install and the udev
-step, and the manifest `version` matches what we announce.
+## Listing on the marketplace
+
+Rules from the marketplace's `SUBMISSION.md`, `VERIFICATION.md` and `SECURITY.md` (read 2026-09-21):
+
+**Repository requirements**
+
+- Public GitHub repository with one plugin and `manifest.json` at the root. Ours: yes.
+- Root README with **installation and removal instructions**. Ours: the Remove section was added for this.
+- Root licence file, external dependencies documented. Ours: MIT; `python-hidapi` is named in the panel's
+  error text and the bridge, and should be named in the README requirements too.
+- Globally unique plugin id outside `omarchy.*`. Ids are permanent and can never be reused, and the
+  marketplace prefers a namespaced lowercase id such as `io.github.dreamsgarage.omasteelrgb`. Ours is
+  `steelseries.keyboard`, not taken in the registry as of 2026-09-21. Changing it later means every user
+  reinstalls, so decide before the first submission.
+- Optional root `preview.png` (or jpg, webp, avif); the marketplace generates card images from it. Ours: none
+  yet. A panel screenshot is the obvious candidate.
+- Manifest fields the listing reads: `schemaVersion`, `id`, `name`, `version` (max 64 chars), `author`,
+  `description`, `kinds`, `entryPoints`. Ours has all of them.
+
+**Submission**
+
+Category is one of Appearance, Desktop, Developer Tools, Hardware, Kids, Productivity, System, Widgets,
+Other. Tags are one to three of: ai, bar, education, games, hyprland, kids, launcher, media,
+power-management, quickshell, security, system, vpn, workspaces. For us: `Hardware` with `bar, quickshell`.
+
+Either the issue form <https://github.com/omacom/omarchy-plugin-marketplace/issues/new?template=submit-plugin.yml>
+or the CLI, with a body that keeps these six headings in this order:
+
+```markdown
+### Repository URL
+https://github.com/dreamsgarage/OmasteelRGB
+### Category
+Hardware
+### Tags
+bar, quickshell
+### Suggest a missing tag
+keyboard
+### Maintainer notes
+Per-key steady RGB for the MSI SteelSeries KLC (USB 1038:1122), tested on a GS75 Stealth 8SF. Python 3 +
+python-hidapi. Runtime never calls sudo or pkexec; the one-time udev rule install is the only privileged
+step and the user runs it by hand. Only the steady-colour (0x0e) and commit (0x09) packets are sent;
+hardware effects are deliberately not implemented.
+### Submission checklist
+- [x] The repository is public and contains installation and removal instructions.
+- [x] I have documented the plugin license and any external dependencies.
+- [x] I confirm that I own or have permission to submit this plugin and its preview assets.
+- [x] The plugin does not overwrite user configuration without explicit consent.
+- [x] I understand that approval is for listing and is not a security review.
+```
+
+```bash
+gh issue create --repo omacom/omarchy-plugin-marketplace --title "[Plugin]: OmasteelRGB" --body-file /tmp/submission.md
+```
+
+**What happens next**
+
+- A bot validates the exact commit at the branch head and runs the Automated Security Baseline, a static
+  scan. It does not execute the code. It labels the issue `validated` or `needs-fixes`.
+- Any non-negated mention of `sudo` or `pkexec` in the repo is the `privilege` capability, which adds
+  `security-review-required`. Ours will trigger it: the README and `Model.js` print the udev install
+  commands with sudo. That is allowed; a maintainer reads it and accepts the capability explicitly. Wording
+  such as "No sudo or pkexec is required at runtime" is recognised as a negation and helps.
+- A maintainer applies `approved-and-verified`, which publishes the listing bound to that exact commit.
+  The listing then shows "Snapshot verified".
+- If `main` moves after the validated commit and before approval, the bot asks for a fresh validation.
+  Do not push to `main` while a submission is open, or resubmit the new SHA.
+- **Updates are not automatic.** New commits on `main` reach installed users through `omarchy plugin
+  update`, but the marketplace keeps showing the old snapshot as "Update unverified" until you open a
+  Plugin verification issue (<https://github.com/omacom/omarchy-plugin-marketplace/issues/new?template=verify-plugin.yml>,
+  "Verify and publish a newer upstream commit") with the plugin id, the repository URL and the full 40-char
+  SHA. Do this once per release, not per commit.
+
+**Existing listings in the same space** (checked 2026-09-21)
+
+- *Keyboard RGB* by bruno-g-soares (`io.github.bruno-g-soares.omarchy-keyboard-rgb`, listed 2026-08-27):
+  the same SteelSeries KLC controller, verified on a GS66 12U with USB id `1038:113a`, and it refuses any
+  other id. One solid colour for the whole board, software brightness, on/off, saved profiles, startup
+  restore and theme sync via hooks. It vendors msi-perkeyrgb. It does not do groups or per-key colours.
+  That is the gap OmasteelRGB fills, and the README should say so in one line.
+- *Apex Keyboard* (`sonic.apex`) for the external SteelSeries Apex 7, through OpenRGB.
+- Several theme-sync plugins built on OpenRGB (omargb, omaglow, omarchy-theme-rgb, omarchy-openrgb). None
+  can drive the KLC, because OpenRGB has no controller for `1038:1122`/`113a`.
 
 ## What the validator checks
 
@@ -119,6 +206,8 @@ Things the checks do **not** cover, and that the announcement should say plainly
    ```
 
 6. Optionally create a GitHub release from the tag with the changelog. `gh release create v0.1.0 --generate-notes`.
+7. If the plugin is listed on the marketplace, open a Plugin verification issue for the new commit SHA so
+   the listing stops showing "Update unverified" (see *Listing on the marketplace*).
 
 To test the full install path again on this machine, the existing install has to go first, because the
 add command refuses an id that any folder in the plugins directory already uses:

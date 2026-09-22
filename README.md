@@ -14,6 +14,11 @@ KLC (reference machine: GS75 Stealth 8SF, USB `1038:1122`; the keymap also lists
 GS73/GX63/GT63/GL63 family it was ported from). External SteelSeries Apex-family keyboards are detected and
 reported in the panel but not driven yet; that backend goes through OpenRGB and is not part of v1.
 
+If you only want one colour across the whole board with theme sync, the marketplace already lists
+[Keyboard RGB](https://github.com/bruno-g-soares/omarchy-keyboard-rgb) for the same controller (verified on
+a GS66, USB `1038:113a`). OmasteelRGB exists for the many-colours-at-once case: base fill plus groups plus
+individual keys, kept as layers you can edit one at a time.
+
 Typing already works. The gap is lighting. The laptop keyboard currently replays a Windows SteelSeries Engine profile from onboard memory. The plugin must not overwrite that until the user applies a map.
 
 ## v1 in one sentence
@@ -56,6 +61,9 @@ The base colour reads cyan in this photo but is actually blue-violet (`#4a5cff`)
 
 ## Install
 
+Requirements: Omarchy 4 (Quattro), Python 3 and the `python-hidapi` package (`omarchy pkg add python-hidapi`).
+The bridge uses nothing else outside the standard library.
+
 ```bash
 omarchy plugin add https://github.com/dreamsgarage/OmasteelRGB.git --enable
 ```
@@ -83,6 +91,20 @@ IPC: `omarchy-shell steelseries.keyboard status|off|restore|preset <id>|setBase 
 
 There is no software brightness. The chassis `Fn` keys dim the backlight in firmware, and a plugin-side scale
 fought them (and the panel's `h`/`l` keys), so it was removed.
+
+## Remove
+
+```bash
+omarchy plugin remove steelseries.keyboard
+```
+
+That deletes the plugin folder and its bar entry. The keyboard keeps whatever map was last written, since the
+controller stores it in onboard memory. Optional clean-up:
+
+```bash
+sudo rm -f /etc/udev/rules.d/70-steelseries-klc.rules && sudo udevadm control --reload   # the device rule
+rm -rf ~/.local/state/omarchy/steelseries-keyboard                                       # the saved profile
+```
 
 ## Development
 
