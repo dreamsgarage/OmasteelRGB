@@ -72,3 +72,41 @@ def clear():
         return True
     except OSError:
         return False
+
+
+# -- settings ------------------------------------------------------------------
+#
+# Small, user-set preferences that must outlive the shell: today only the
+# model override. Separate from the snapshot so clearing one never loses the
+# other. Paths are computed at call time so tests can redirect STATE_DIR.
+
+def settings_path():
+    return os.path.join(STATE_DIR, "settings.json")
+
+
+def load_settings():
+    try:
+        with open(settings_path(), "r", encoding="utf-8") as fh:
+            doc = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    return doc if isinstance(doc, dict) else {}
+
+
+def save_settings(doc):
+    os.makedirs(STATE_DIR, exist_ok=True)
+    handle, tmp = tempfile.mkstemp(dir=STATE_DIR, prefix=".settings-", suffix=".json")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as fh:
+            json.dump(doc, fh, indent=2)
+            fh.write("\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, settings_path())
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    return settings_path()

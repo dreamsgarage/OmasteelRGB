@@ -91,7 +91,7 @@ def test_regions_do_not_overlap():
         real = {c for c in codes if c != klc_hid.EMPTY_SLOT}
         assert not (seen & real), "a keycode in two regions would be written twice"
         seen |= real
-    assert len(seen) == 113
+    assert len(seen) == 114  # 113 upstream + 102, the GS66 power key
 
 
 def test_padding_slot_is_not_addressable():

@@ -71,9 +71,12 @@ REGION_KEYCODES = {
         41, 42, 43, 44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 101, 224, 225, 226,
         227, 228, 229, 230, 240, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     ],
+    # 102 is the power key's RGB element on the GS66 (Bergmann89's msi-perkeyrgb
+    # fork adds it to this region). Other models have no LED there; a keymap
+    # that does not name it never sends it.
     "numpad": [
         64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83,
-        84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 0, 0, 0, 0, 0, 0
+        84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 102, 0, 0, 0, 0, 0
     ],
 }
 

@@ -4,6 +4,15 @@ Keymaps are data, not code. Each file in keymaps/*.json describes one model
 family: the key names it exposes, the X11 -> HID keycode translation, and the
 named groups. Adding support for a new MSI deck means contributing a JSON file,
 not editing Python.
+
+A keymap may `"extends"` another by id: keys, x11_to_hid, aliases, notes and
+groups are merged on top of the base (a redefined group replaces the whole
+list). The GS65 and GS66 maps are two and three lines on top of the GE63
+family this way, instead of three copies of a 100-entry table.
+
+Model selection (`select`) turns the machine's DMI model token into a keymap:
+an explicit override wins, then the detected token, then the default map with
+`known: false` so the UI can say the layout is a guess.
 """
 
 import json
@@ -22,7 +31,12 @@ class Keymap:
     def __init__(self, doc, source=""):
         self.source = source
         self.id = doc.get("id") or ""
+        self.name = doc.get("name") or self.id
+        self.extends = doc.get("extends")
         self.models = list(doc.get("models") or [])
+        # Models someone has actually lit with this table, as opposed to
+        # models upstream lists as sharing it.
+        self.tested = list(doc.get("tested") or [])
         self.keys = dict(doc.get("keys") or {})
         self.groups = dict(doc.get("groups") or {})
         self.notes = dict(doc.get("notes") or {})
@@ -95,25 +109,62 @@ class Keymap:
         return "<Keymap %s: %d keys, %d groups>" % (self.id, len(self.keys), len(self.groups))
 
 
-def _load_file(path):
+MERGED_FIELDS = ("keys", "x11_to_hid", "aliases", "notes", "groups")
+OWN_FIELDS = ("id", "name", "models", "layouts", "provenance", "tested", "extends")
+
+
+def _read_doc(path):
     try:
         with open(path, "r", encoding="utf-8") as fh:
-            return Keymap(json.load(fh), source=os.path.basename(path))
+            return json.load(fh)
     except (OSError, ValueError) as exc:
         raise KeymapError("cannot read keymap %s: %s" % (path, exc)) from exc
 
 
+def _resolve(doc_id, docs, chain=()):
+    """Flatten an `extends` chain into one document."""
+    doc, name = docs[doc_id]
+    base_id = doc.get("extends")
+    if not base_id:
+        return dict(doc)
+    if base_id not in docs:
+        raise KeymapError("keymap %r extends unknown keymap %r" % (name, base_id))
+    if base_id in chain or base_id == doc_id:
+        raise KeymapError("keymap %r has a circular extends chain" % (name,))
+    base = _resolve(base_id, docs, chain + (doc_id,))
+    merged = dict(base)
+    for field in MERGED_FIELDS:
+        combined = dict(base.get(field) or {})
+        combined.update(doc.get(field) or {})
+        merged[field] = combined
+    for field in OWN_FIELDS:
+        if field in doc:
+            merged[field] = doc[field]
+    return merged
+
+
 def available(keymap_dir=None):
-    """Every keymap on disk, keyed by keymap id."""
+    """Every keymap on disk, keyed by keymap id, with extends resolved."""
     directory = keymap_dir or KEYMAP_DIR
     out = {}
     if not os.path.isdir(directory):
         return out
+    docs = {}
     for name in sorted(os.listdir(directory)):
         if name.endswith(".json"):
-            km = _load_file(os.path.join(directory, name))
-            out[km.id] = km
+            doc = _read_doc(os.path.join(directory, name))
+            doc_id = doc.get("id") or name[:-5]
+            if doc_id in docs:
+                raise KeymapError("two keymaps claim id %r: %s and %s" % (doc_id, docs[doc_id][1], name))
+            docs[doc_id] = (doc, name)
+    for doc_id, (_doc, name) in docs.items():
+        out[doc_id] = Keymap(_resolve(doc_id, docs), source=name)
     return out
+
+
+def known_models(keymap_dir=None):
+    """Every model token any keymap claims, sorted."""
+    return sorted({m.upper() for km in available(keymap_dir).values() for m in km.models})
 
 
 def load(model, keymap_dir=None):
@@ -130,3 +181,40 @@ def load(model, keymap_dir=None):
         "no keymap for model %r. Known models: %s. "
         "Other MSI decks need a contributed keymaps/*.json." % (model, ", ".join(known))
     )
+
+
+def catalog(keymap_dir=None):
+    """What the panel lists: each keymap with the models it claims."""
+    return [{
+        "id": km.id,
+        "name": km.name,
+        "models": km.models,
+        "tested": km.tested,
+        "keys": len(km.keys),
+        "extends": km.extends,
+    } for km in available(keymap_dir).values()]
+
+
+def select(machine=None, override=None, default="GS75", keymap_dir=None):
+    """Choose the keymap for this machine.
+
+    Returns (keymap, info). info["source"] is "override", "dmi" or "default";
+    info["known"] is False when the machine's model token matched nothing and
+    the default table is a guess.
+    """
+    detected = (machine or {}).get("model")
+    if override:
+        km = load(override, keymap_dir)  # raises on an unknown override
+        model = str(override).strip().upper()
+        return km, {"selected": model, "detected": detected, "keymap": km.id,
+                    "source": "override", "known": True, "tested": model in [t.upper() for t in km.tested]}
+    if detected:
+        try:
+            km = load(detected, keymap_dir)
+            return km, {"selected": detected, "detected": detected, "keymap": km.id,
+                        "source": "dmi", "known": True, "tested": detected in [t.upper() for t in km.tested]}
+        except KeymapError:
+            pass
+    km = load(default, keymap_dir)
+    return km, {"selected": default, "detected": detected, "keymap": km.id,
+                "source": "default", "known": False, "tested": False}

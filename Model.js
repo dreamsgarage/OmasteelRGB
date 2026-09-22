@@ -22,7 +22,8 @@ var GROUP_LABELS = {
   numpad: "Numpad",
   f_row: "F row",
   num_row: "Number row",
-  characters: "Letters"
+  characters: "Letters",
+  power: "Power key"
 }
 
 function urlToPath(url) {
@@ -108,4 +109,15 @@ function knownKey(typed, keyNames, aliasNames) {
   var names = (keyNames || []).concat(aliasNames || [])
   for (var i = 0; i < names.length; i++) if (String(names[i]).toLowerCase() === q) return true
   return false
+}
+
+// "GS75 Stealth 8SF · GS75 map, detected" for the model line under the hero.
+function modelLine(machine, info) {
+  if (!info) return ""
+  var product = machine && machine.product ? String(machine.product) : ""
+  var how = info.source === "override" ? "chosen by you"
+    : info.source === "dmi" ? (info.tested ? "detected, tested" : "detected, untested")
+    : "layout unknown, using default"
+  var map = String(info.selected || "") + " map"
+  return (product ? product + " · " : "") + map + ", " + how
 }

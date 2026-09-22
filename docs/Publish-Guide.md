@@ -150,9 +150,9 @@ All run on 2026-09-21 against `main` after the rename to OmasteelRGB.
 
 Things the checks do **not** cover, and that the announcement should say plainly:
 
-- Only the GS75 keymap ships. The X11-to-HID table was ported from msi-perkeyrgb's GE63 family and the
-  keymap lists those models, but only the GS75 Stealth 8SF was tested. Other MSI decks with the SteelSeries
-  KLC (USB `1038:1122` or `1038:113a`) probably work; group membership may differ.
+- Three keymaps ship (GE63 family, GS65, GS66) covering eleven MSI model tokens, chosen from the DMI
+  product name with a panel override. Only the GS75 Stealth 8SF has been lit by this plugin; the rest are
+  upstream tables. An unknown model gets the family table and a visible warning.
 - Apex-family external keyboards are detected and reported, not driven. That backend is OpenRGB and is not
   in v1.
 - The first write replaces the profile the controller replays from onboard memory, and Linux cannot read

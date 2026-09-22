@@ -44,6 +44,9 @@ Panel {
   // True while the pending first write is a partial edit (group or key)
   // that the bridge seeds from the default preset.
   property bool pendingIsPartial: false
+  // The model chips fold away once detection has a known match; a click on
+  // the model line brings them back to correct a wrong guess.
+  property bool showModelPicker: false
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -150,13 +153,20 @@ Panel {
       keyboard.setKey(key, hex); return "ok"
     }
     function preset(id: string): string { return keyboard.loadPreset(id) ? "ok" : "unknown preset" }
+    // Keymap by model token, e.g. setModel GS66; "auto" returns to DMI detection.
+    function setModel(model: string): string { keyboard.setModel(model); return "ok" }
+    function models(): string {
+      return JSON.stringify({ machine: keyboard.machine, model: keyboard.modelInfo, keymaps: keyboard.models })
+    }
     function status(): string {
       return JSON.stringify({
         device: keyboard.deviceName,
         accessible: keyboard.accessible,
         hasSnapshot: keyboard.hasSnapshot,
         lightsOn: keyboard.lightsOn,
-        base: keyboard.baseColor
+        base: keyboard.baseColor,
+        model: keyboard.selectedModel,
+        modelSource: keyboard.modelInfo ? keyboard.modelInfo.source : ""
       })
     }
   }
@@ -285,6 +295,84 @@ Panel {
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
             wrapMode: Text.WordWrap
+          }
+
+          // ---------- model ----------
+          Column {
+            visible: keyboard.hasDevice && keyboard.modelLine !== ""
+            width: parent.width
+            spacing: Style.space(6)
+
+            Item {
+              width: parent.width
+              height: modelText.implicitHeight
+
+              Text {
+                id: modelText
+                textFormat: Text.PlainText
+                width: parent.width
+                text: keyboard.modelLine
+                color: keyboard.modelKnown ? root.dim : root.urgent
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.WordWrap
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.showModelPicker = !root.showModelPicker
+              }
+            }
+
+            Text {
+              visible: keyboard.modelMessage !== ""
+              textFormat: Text.PlainText
+              width: parent.width
+              text: keyboard.modelMessage
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+            }
+
+            Flow {
+              visible: !keyboard.modelKnown || keyboard.modelOverridden || root.showModelPicker
+              width: parent.width
+              spacing: Style.space(6)
+
+              Button {
+                text: "Auto"
+                selected: !keyboard.modelOverridden
+                enabled: root.ready && !keyboard.busy
+                tooltipText: "Detect the model from the machine's DMI product name"
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                fontSize: Style.font.bodySmall
+                onClicked: keyboard.setModel("auto")
+              }
+
+              Repeater {
+                model: keyboard.models
+                Repeater {
+                  id: perKeymap
+                  required property var modelData
+                  model: modelData.models
+                  Button {
+                    required property var modelData
+                    text: modelData
+                    selected: keyboard.modelOverridden && keyboard.selectedModel === modelData
+                    enabled: root.ready && !keyboard.busy
+                    tooltipText: perKeymap.modelData.name + " map, " + perKeymap.modelData.keys + " keys"
+                      + (perKeymap.modelData.tested.indexOf(modelData) >= 0 ? ", tested" : ", untested")
+                    foreground: root.foreground
+                    fontFamily: root.fontFamily
+                    fontSize: Style.font.bodySmall
+                    onClicked: keyboard.setModel(modelData)
+                  }
+                }
+              }
+            }
           }
 
           // ---------- needs access ----------

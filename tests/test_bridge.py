@@ -236,6 +236,68 @@ def test_ready_handshake_is_opt_in():
     assert "event" not in run(['{"cmd":"detect"}'])[0]
 
 
+# --- model detection and override ------------------------------------------
+
+def fake_machine(product):
+    from bridge import detect
+    return lambda dmi_dir=None: {"vendor": "Micro-Star International Co., Ltd.", "product": product,
+                                 "board": "MS-0000", "family": "", "msi": True,
+                                 "model": detect.model_token(product)}
+
+
+def test_state_reports_the_detected_model(bridge, monkeypatch):
+    from bridge import detect
+    monkeypatch.setattr(detect, "machine", fake_machine("GS65 Stealth Thin 8RE"))
+    r = bridge.handle({"cmd": "state"})
+    assert r["model"] == {"selected": "GS65", "detected": "GS65", "keymap": "gs65",
+                          "source": "dmi", "known": True, "tested": False}
+    assert r["modelMessage"] is None
+    assert bridge.keymap().id == "gs65"
+    # The keymap command with no model argument describes the selected map.
+    assert bridge.handle({"cmd": "keymap"})["keymap"] == "gs65"
+
+
+def test_unknown_model_falls_back_and_says_so(bridge, monkeypatch):
+    from bridge import detect
+    monkeypatch.setattr(detect, "machine", fake_machine("GP66 Leopard 11UG"))
+    r = bridge.handle({"cmd": "state"})
+    assert r["model"]["known"] is False and r["model"]["keymap"] == "gs75"
+    assert "GP66" in r["modelMessage"] and "GS75" in r["modelMessage"]
+
+
+def test_set_model_overrides_detection_and_persists(bridge, monkeypatch):
+    from bridge import detect
+    monkeypatch.setattr(detect, "machine", fake_machine("GP66 Leopard 11UG"))
+    r = bridge.handle({"cmd": "set_model", "model": "gs66"})
+    assert r["ok"] is True, r
+    assert r["model"]["source"] == "override" and r["model"]["selected"] == "GS66"
+    assert snapshot.load_settings() == {"model": "GS66"}
+    # A fresh bridge (shell restart) reads the override back.
+    assert bridge_mod.Bridge().keymap().id == "gs66"
+    # And the panel's group list follows the new map.
+    assert "power" in bridge.handle({"cmd": "keymap"})["groups"]
+    # "auto" clears it.
+    r = bridge.handle({"cmd": "set_model", "model": "auto"})
+    assert r["model"]["source"] == "default" and snapshot.load_settings() == {}
+
+
+def test_set_model_rejects_unknown_and_stale_override_is_ignored(bridge, monkeypatch):
+    from bridge import detect
+    monkeypatch.setattr(detect, "machine", fake_machine("GS75 Stealth 8SF"))
+    r = bridge.handle({"cmd": "set_model", "model": "GT99"})
+    assert r["ok"] is False and "Known models" in r["error"]
+    snapshot.save_settings({"model": "retired-map"})
+    r = bridge_mod.Bridge().handle({"cmd": "state"})
+    assert r["model"]["source"] == "dmi" and r["model"]["staleOverride"] == "retired-map"
+    assert "ignored" in r["modelMessage"]
+
+
+def test_models_lists_the_catalogue(bridge):
+    r = bridge.handle({"cmd": "models"})
+    assert sorted(m["id"] for m in r["models"]) == ["gs65", "gs66", "gs75"]
+    assert "machine" in r and "model" in r
+
+
 # --- first partial edit --------------------------------------------------
 
 @pytest.fixture

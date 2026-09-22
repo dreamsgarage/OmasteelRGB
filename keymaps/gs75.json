@@ -1,5 +1,6 @@
 {
   "id": "gs75",
+  "name": "GE63 family",
   "models": [
     "GE63",
     "GE73",
@@ -18,7 +19,8 @@
   "provenance": {
     "x11_to_hid": "Ported from msi-perkeyrgb protocol_data/msi_keymaps.py (MIT, Askannz).",
     "groups": "OmasteelRGB. nav/wasd/numpad_ops are additions and enter_esc gains KP_Enter; the rest mirror upstream aliases.",
-    "validated": "2026-09-12 on MSI GS75 Stealth 8SF, USB 1038:1122."
+    "validated": "2026-09-12 on MSI GS75 Stealth 8SF, USB 1038:1122.",
+    "models": "The nine models are upstream msi-perkeyrgb's list for this table. GS75 lit by this plugin (2026-09-12); the others are upstream user reports. GS65 and GS66 have their own files that extend this one."
   },
   "notes": {
     "nav": "Four keys on this chassis, not six. Home (X11 110) and End (X11 115) have no addressable LED - they are Fn-layer functions.",
@@ -390,5 +392,8 @@
       "Space",
       "ISO_Extra"
     ]
-  }
+  },
+  "tested": [
+    "GS75"
+  ]
 }

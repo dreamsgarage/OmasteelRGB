@@ -16,6 +16,8 @@ Protocol - one request per line, one response per line:
     {"cmd": "restore"}
     {"cmd": "state"}
     {"cmd": "keymap",    "model": "GS75"}
+    {"cmd": "models"}
+    {"cmd": "set_model", "model": "GS66"}      or "auto" to detect again
 
 Every response carries "ok". Failures carry "error" and never raise.
 
@@ -31,6 +33,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from bridge import detect, keymap as keymap_mod, klc_hid, model, snapshot  # noqa: E402
 
+# The table used when DMI names a model no keymap knows. The GE63 family is
+# the largest and the one every other map extends.
 DEFAULT_MODEL = "GS75"
 PRESET_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "presets")
 # The layer stack. Everything else in a preset document is metadata.
@@ -42,16 +46,30 @@ DEFAULT_BASE = "#4a5cff"
 class Bridge:
     def __init__(self):
         self._keymap = None
-        self._model = DEFAULT_MODEL
+        self._selection = None
         self._device = None
 
     # -- helpers ----------------------------------------------------------
 
+    def selection(self):
+        """Which keymap this machine gets, and why. Cached until set_model."""
+        if self._selection is None:
+            override = snapshot.load_settings().get("model")
+            try:
+                km, info = keymap_mod.select(detect.machine(), override=override, default=DEFAULT_MODEL)
+            except keymap_mod.KeymapError:
+                # A stale override naming a keymap that no longer exists must
+                # not lock the panel out; fall back to detection.
+                km, info = keymap_mod.select(detect.machine(), override=None, default=DEFAULT_MODEL)
+                info["staleOverride"] = override
+            self._keymap, self._selection = km, info
+        return self._selection
+
     def keymap(self, name=None):
-        wanted = name or self._model
-        if self._keymap is None or wanted != self._model:
-            self._keymap = keymap_mod.load(wanted)
-            self._model = wanted
+        """The selected keymap, or a specific one by model/id for inspection."""
+        if name:
+            return keymap_mod.load(name)
+        self.selection()
         return self._keymap
 
     def klc_device(self):
@@ -133,6 +151,8 @@ class Bridge:
         km = self.keymap(req.get("model"))
         return {
             "keymap": km.id,
+            "name": km.name,
+            "tested": km.tested,
             "models": km.models,
             "keys": sorted(km.keys),
             "groups": {g: km.group_members(g) for g in km.groups},
@@ -140,12 +160,47 @@ class Bridge:
             "notes": km.notes,
         }
 
+    def model_message(self, info, machine):
+        if info.get("staleOverride"):
+            return ("The saved model override %r matches no keymap and was ignored."
+                    % info["staleOverride"])
+        if not info["known"]:
+            what = ("%s (%s)" % (machine["product"], info["detected"]) if info["detected"]
+                    else (machine["product"] or "this machine"))
+            return ("No keymap for %s. Using the %s table, so some keys may light in the wrong place. "
+                    "Pick a model below if yours is listed." % (what, info["selected"]))
+        return None
+
+    def cmd_models(self, _req):
+        return {"models": keymap_mod.catalog(), "machine": detect.machine(), "model": self.selection()}
+
+    def cmd_set_model(self, req):
+        wanted = str(req.get("model") or "").strip()
+        settings = snapshot.load_settings()
+        if wanted.lower() in ("", "auto", "detect"):
+            settings.pop("model", None)
+        else:
+            km = keymap_mod.load(wanted)  # raises KeymapError with the known list
+            token = wanted.upper()
+            if token not in [m.upper() for m in km.models]:
+                token = km.models[0]  # an id such as "gs66" was given
+            settings["model"] = token
+        snapshot.save_settings(settings)
+        self._selection = None
+        self._keymap = None
+        return {"model": self.selection(), "machine": detect.machine()}
+
     def cmd_state(self, _req):
         stored = snapshot.load()
         devices = detect.scan()
         start = self.default_preset()
+        machine = detect.machine()
+        info = self.selection()
         return {
             "devices": devices,
+            "machine": machine,
+            "model": info,
+            "modelMessage": self.model_message(info, machine),
             "hasSnapshot": stored is not None,
             "profile": stored["profile"] if stored else None,
             "snapshotPath": snapshot.path(),
@@ -267,7 +322,7 @@ class Bridge:
 
     HANDLERS = {
         "detect": cmd_detect, "state": cmd_state, "keymap": cmd_keymap,
-        "presets": cmd_presets,
+        "presets": cmd_presets, "models": cmd_models, "set_model": cmd_set_model,
         "apply": cmd_apply, "set_base": cmd_set_base, "set_group": cmd_set_group,
         "set_key": cmd_set_key,
         "off": cmd_off, "restore": cmd_restore,

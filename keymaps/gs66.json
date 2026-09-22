@@ -1,0 +1,34 @@
+{
+  "id": "gs66",
+  "name": "GS66",
+  "extends": "gs65",
+  "models": [
+    "GS66"
+  ],
+  "tested": [],
+  "layouts": [
+    "us",
+    "iso"
+  ],
+  "provenance": {
+    "x11_to_hid": "Bergmann89/msi-perkeyrgb fork, the ['GS66'] table (MIT): the GS65 table plus the power key's RGB element at HID 102 in the numpad region.",
+    "validated": "Not lit by this plugin yet. The GS66 12U ships the same KLC with USB id 1038:113a; another Omarchy plugin (omarchy-keyboard-rgb) drives it with the GE75 table and reports the power key LED as addressable."
+  },
+  "notes": {
+    "power": "The power button carries an RGB element. Its separate GPU-status LED is firmware-driven and not addressable."
+  },
+  "keys": {
+    "Power": "power"
+  },
+  "aliases": {
+    "PowerButton": "Power"
+  },
+  "x11_to_hid": {
+    "power": 102
+  },
+  "groups": {
+    "power": [
+      "Power"
+    ]
+  }
+}

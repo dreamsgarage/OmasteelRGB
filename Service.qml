@@ -32,6 +32,16 @@ Item {
   // `off` this plugin sent turns this false.
   property bool lightsOn: true
 
+  // Which keymap the bridge chose for this machine, and the machine itself.
+  property var modelInfo: null
+  property var machine: null
+  property string modelMessage: ""
+  property var models: []
+  readonly property string modelLine: Model.modelLine(machine, modelInfo)
+  readonly property bool modelKnown: !!modelInfo && modelInfo.known === true
+  readonly property bool modelOverridden: !!modelInfo && modelInfo.source === "override"
+  readonly property string selectedModel: modelInfo ? String(modelInfo.selected || "") : ""
+
   property var groups: ({})
   property var groupNames: []
   property var keyNames: []
@@ -120,6 +130,9 @@ Item {
     profile = r.profile || null
     snapshotMessage = r.message ? String(r.message) : ""
     startingFrom = r.startingFrom || null
+    modelInfo = r.model || null
+    machine = r.machine || null
+    modelMessage = r.modelMessage ? String(r.modelMessage) : ""
   }
 
   function refresh() {
@@ -133,6 +146,21 @@ Item {
       root.groupNames = Object.keys(r.groups || {})
       root.keyNames = r.keys || []
       root.aliasNames = Object.keys(r.aliases || {})
+    })
+  }
+
+  function loadModels() {
+    send({ cmd: "models" }, function(r) { if (r.ok) root.models = r.models || [] })
+  }
+
+  // Pick a keymap by model token ("GS66") or "auto" to detect again. The
+  // groups and key names come from the map, so reload them afterwards.
+  function setModel(model) {
+    send({ cmd: "set_model", model: model }, function(r) {
+      if (!r.ok) return
+      root.refresh()
+      root.loadKeymap()
+      root.flash(model === "auto" ? "Model detection restored" : "Using the " + String(r.model.selected) + " map")
     })
   }
 
@@ -229,5 +257,6 @@ Item {
     refresh()
     loadKeymap()
     loadPresets()
+    loadModels()
   }
 }

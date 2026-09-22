@@ -10,6 +10,7 @@ machine can easily have /dev/hidraw2 belong to the touchpad.
 
 import glob
 import os
+import re
 
 VENDOR_STEELSERIES = 0x1038
 
@@ -128,3 +129,35 @@ def scan():
 
     out.sort(key=lambda d: (d["kind"] != "klc", d["product_id"]))
     return out
+
+
+# -- machine identity ----------------------------------------------------------
+#
+# The KLC product id is shared across MSI designs, so the keyboard alone does
+# not say which key layout it has. DMI does: product_name reads like
+# "GS75 Stealth 8SF" or "Raider GE78HX 13VI". The family token (two letters,
+# two digits) is what msi-perkeyrgb keymaps are keyed by.
+
+DMI_DIR = "/sys/class/dmi/id"
+MODEL_TOKEN_RE = re.compile(r"\b([A-Z]{2}\d{2})[A-Z]{0,2}\b")
+
+
+def model_token(product_name):
+    """'GS75 Stealth 8SF' -> 'GS75', 'Raider GE78HX 13VI' -> 'GE78', else None."""
+    match = MODEL_TOKEN_RE.search(str(product_name or "").upper())
+    return match.group(1) if match else None
+
+
+def machine(dmi_dir=None):
+    """Vendor, product, board and the model token, read-only from sysfs."""
+    directory = dmi_dir or DMI_DIR
+    vendor = _read(os.path.join(directory, "sys_vendor")).strip()
+    product = _read(os.path.join(directory, "product_name")).strip()
+    return {
+        "vendor": vendor,
+        "product": product,
+        "board": _read(os.path.join(directory, "board_name")).strip(),
+        "family": _read(os.path.join(directory, "product_family")).strip(),
+        "msi": "micro-star" in vendor.lower() or vendor.strip().upper() == "MSI",
+        "model": model_token(product),
+    }

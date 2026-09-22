@@ -1,0 +1,41 @@
+{
+  "id": "gs65",
+  "name": "GS65",
+  "extends": "gs75",
+  "models": [
+    "GS65"
+  ],
+  "tested": [],
+  "layouts": [
+    "us",
+    "iso"
+  ],
+  "provenance": {
+    "x11_to_hid": "msi-perkeyrgb protocol_data/msi_keymaps.py, the ['GS65'] table (MIT, Askannz): the GE63 family table plus Home (X11 110 -> HID 74) and End (X11 115 -> HID 77).",
+    "groups": "nav grows to six keys because Home and End have their own LEDs on this chassis.",
+    "validated": "Not lit by this plugin yet; upstream lists GS65 as working."
+  },
+  "notes": {
+    "nav": "Six keys: Insert, Home, PgUp, Delete, End, PgDn. On the GE63 family Home and End are Fn-layer functions with no LED.",
+    "numpad": "The GS65 Stealth Thin has no numpad. The KP_ names are inherited from the family table and light nothing here."
+  },
+  "keys": {
+    "Home": 110,
+    "End": 115
+  },
+  "aliases": {},
+  "x11_to_hid": {
+    "110": 74,
+    "115": 77
+  },
+  "groups": {
+    "nav": [
+      "Insert",
+      "Home",
+      "Prior",
+      "Delete",
+      "End",
+      "Next"
+    ]
+  }
+}

@@ -185,3 +185,105 @@ def test_enter_esc_covers_both_enter_keys(km):
     out = model.resolve({"base": "#4a5cff", "groups": {"enter_esc": "#2aff5a"}}, km)
     assert out["Esc"] == out["Return"] == out["KP_Enter"] == (0x2A, 0xFF, 0x5A)
     assert out["KP_Add"] == BASE, "the rest of the numpad stays on the base"
+
+
+# --- keymap catalogue: inheritance and model selection ---------------------
+
+def test_every_keymap_loads_and_translates():
+    for km in keymap_mod.available().values():
+        assert km.keys, km.id
+        for key in km.keys:
+            assert km.hid_for(key) is not None, (km.id, key)
+
+
+def test_gs65_extends_the_family_with_home_and_end():
+    km = keymap_mod.load("GS65")
+    assert km.extends == "gs75"
+    assert len(km.keys) == 104
+    assert km.hid_for("Home") == 74 and km.hid_for("End") == 77
+    assert km.group_members("nav") == ["Insert", "Home", "Prior", "Delete", "End", "Next"]
+    # Everything else is inherited unchanged.
+    base = keymap_mod.load("GS75")
+    assert km.hid_for("Esc") == base.hid_for("Esc") == 41
+    assert km.group_members("wasd") == base.group_members("wasd")
+    assert km.canonical("PrtSc") == "Print", "aliases inherit too"
+
+
+def test_gs66_adds_the_power_key_on_top_of_gs65():
+    from bridge import klc_hid
+    km = keymap_mod.load("GS66")
+    assert km.extends == "gs65"
+    assert len(km.keys) == 105
+    assert km.hid_for("Power") == 102
+    assert klc_hid.region_for(102) == "numpad"
+    assert km.hid_for("Home") == 74, "two-level inheritance"
+    assert km.canonical("PowerButton") == "Power"
+    out = model.resolve({"base": "#4a5cff", "groups": {"power": "#ff2a2a"}}, km)
+    assert out["Power"] == RED and out["Esc"] == BASE
+
+
+def test_family_keymap_lists_upstream_models_and_marks_what_was_lit():
+    km = keymap_mod.load("GS75")
+    assert set(km.models) == {"GE63", "GE73", "GE75", "GS63", "GS73", "GS75", "GX63", "GT63", "GL63"}
+    assert km.tested == ["GS75"]
+    assert sorted(keymap_mod.known_models()) == sorted(km.models + ["GS65", "GS66"])
+
+
+def test_catalog_lists_each_keymap_once():
+    cat = keymap_mod.catalog()
+    assert sorted(c["id"] for c in cat) == ["gs65", "gs66", "gs75"]
+    by_id = {c["id"]: c for c in cat}
+    assert by_id["gs66"]["keys"] == 105 and by_id["gs66"]["extends"] == "gs65"
+
+
+def test_extends_cycle_and_unknown_base_are_refused(tmp_path):
+    (tmp_path / "a.json").write_text(json.dumps({"id": "a", "extends": "b", "keys": {"Esc": 9}, "x11_to_hid": {"9": 41}}))
+    (tmp_path / "b.json").write_text(json.dumps({"id": "b", "extends": "a", "keys": {"Esc": 9}, "x11_to_hid": {"9": 41}}))
+    with pytest.raises(keymap_mod.KeymapError, match="circular"):
+        keymap_mod.available(str(tmp_path))
+    (tmp_path / "b.json").write_text(json.dumps({"id": "b", "extends": "zzz", "keys": {"Esc": 9}, "x11_to_hid": {"9": 41}}))
+    with pytest.raises(keymap_mod.KeymapError, match="unknown keymap"):
+        keymap_mod.available(str(tmp_path))
+
+
+@pytest.mark.parametrize("product, token", [
+    ("GS75 Stealth 8SF", "GS75"),
+    ("GS65 Stealth Thin 8RE", "GS65"),
+    ("GS66 Stealth 12UGS", "GS66"),
+    ("GE75 Raider 8SF", "GE75"),
+    ("Raider GE78HX 13VI", "GE78"),
+    ("GP66 Leopard 11UG", "GP66"),
+    ("Titan GT77HX 13VH", "GT77"),
+    ("Katana 15 B13VFK", None),
+    ("Stealth 16 Studio A13VG", None),
+    ("", None),
+    (None, None),
+])
+def test_model_token_from_dmi_product_name(product, token):
+    from bridge import detect
+    assert detect.model_token(product) == token
+
+
+def test_machine_reads_dmi_read_only(tmp_path):
+    from bridge import detect
+    (tmp_path / "sys_vendor").write_text("Micro-Star International Co., Ltd.\n")
+    (tmp_path / "product_name").write_text("GS66 Stealth 10SE\n")
+    (tmp_path / "board_name").write_text("MS-16V1\n")
+    m = detect.machine(str(tmp_path))
+    assert m["msi"] is True and m["model"] == "GS66" and m["board"] == "MS-16V1"
+    assert m["family"] == "", "a missing DMI file reads as empty, never raises"
+
+
+def test_select_prefers_override_then_dmi_then_default():
+    km, info = keymap_mod.select({"model": "GS75"}, override="GS66")
+    assert (km.id, info["source"], info["selected"], info["known"]) == ("gs66", "override", "GS66", True)
+    km, info = keymap_mod.select({"model": "GS65"})
+    assert (km.id, info["source"], info["known"], info["tested"]) == ("gs65", "dmi", True, False)
+    km, info = keymap_mod.select({"model": "GS75"})
+    assert (km.id, info["source"], info["tested"]) == ("gs75", "dmi", True)
+    km, info = keymap_mod.select({"model": "GP66"})
+    assert (km.id, info["source"], info["known"], info["detected"]) == ("gs75", "default", False, "GP66")
+    km, info = keymap_mod.select({"model": None})
+    assert (km.id, info["source"], info["known"]) == ("gs75", "default", False)
+    with pytest.raises(keymap_mod.KeymapError):
+        keymap_mod.select({"model": "GS75"}, override="Nope")

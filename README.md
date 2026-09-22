@@ -9,10 +9,23 @@ are not (see [docs/v1-implementation-guide.md](docs/v1-implementation-guide.md),
 
 ## What this is
 
-A third-party Omarchy shell plugin that controls **per-key solid RGB** on the integrated MSI SteelSeries
-KLC (reference machine: GS75 Stealth 8SF, USB `1038:1122`; the keymap also lists the GE63/GE73/GE75/GS63/
-GS73/GX63/GT63/GL63 family it was ported from). External SteelSeries Apex-family keyboards are detected and
-reported in the panel but not driven yet; that backend goes through OpenRGB and is not part of v1.
+A third-party Omarchy shell plugin that controls **per-key solid RGB** on the internal MSI SteelSeries KLC
+controller (USB `1038:1122` and `1038:113a`). The plugin reads the machine's DMI product name, picks the
+matching keymap and shows the result in the panel; you can override it there or with
+`omarchy-shell steelseries.keyboard setModel GS66`.
+
+| Keymap | Models | Status |
+|---|---|---|
+| GE63 family (102 keys) | GS75 | Lit by this plugin on a GS75 Stealth 8SF |
+| | GE63, GE73, GE75, GS63, GS73, GX63, GT63, GL63 | Same table upstream (msi-perkeyrgb user reports), untested here |
+| GS65 (104 keys) | GS65 | Family table plus Home and End LEDs, from upstream; untested here |
+| GS66 (105 keys) | GS66 | GS65 table plus the power-key LED, from the Bergmann89 fork; untested here |
+
+Any other MSI deck with the KLC gets the GE63 family table and a warning in the panel. If the keys light
+in the right places, tell us and it joins the list; if not, a new `keymaps/*.json` that `extends` one of
+these is the fix. Zone-based MSI keyboards (three zones, no per-key) are a different controller and out of
+scope. External SteelSeries Apex-family keyboards are detected and reported in the panel but not driven
+yet; that backend goes through OpenRGB and is not part of v1.
 
 If you only want one colour across the whole board with theme sync, the marketplace already lists
 [Keyboard RGB](https://github.com/bruno-g-soares/omarchy-keyboard-rgb) for the same controller (verified on
@@ -55,7 +68,7 @@ The base colour reads cyan in this photo but is actually blue-violet (`#4a5cff`)
 | `Service.qml` | Owns the bridge process; JSON lines over stdin/stdout, re-reads state after every write |
 | `Model.js` | Pure helpers: hex validation, palette, group labels, the udev install commands |
 | `bridge/` | Python: detect, keymap, colour model, KLC HID driver, snapshot, JSON IPC |
-| `keymaps/` | Per-model key names, X11→HID translation and groups — data, not code |
+| `keymaps/` | Per-model key names, X11→HID translation and groups — data, not code. A map can `extends` another. |
 | `presets/` | Shipped colour maps, listed in the panel |
 | `tests/` | `python -m pytest`; nothing here opens the keyboard |
 
@@ -87,7 +100,7 @@ controller replays from onboard memory, and Linux cannot read that profile back 
 asks before that first write.
 
 Keyboard in the panel: `o` power, `r` restore, `p` photo preset, `b` board target, `e` edit a key, `Esc` close.
-IPC: `omarchy-shell steelseries.keyboard status|off|restore|preset <id>|setBase <hex>|setGroup <group> <hex>|setKey <key> <hex>`.
+IPC: `omarchy-shell steelseries.keyboard status|off|restore|preset <id>|setBase <hex>|setGroup <group> <hex>|setKey <key> <hex>|setModel <model|auto>|models`.
 
 There is no software brightness. The chassis `Fn` keys dim the backlight in firmware, and a plugin-side scale
 fought them (and the panel's `h`/`l` keys), so it was removed.
