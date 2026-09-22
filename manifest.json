@@ -3,7 +3,7 @@
   "id": "steelseries.keyboard",
   "name": "OmasteelRGB",
   "version": "0.1.0",
-  "author": "dreamsgarage",
+  "author": "Entangled-Forge",
   "license": "MIT",
   "description": "Per-key RGB for the MSI SteelSeries KLC laptop keyboard: base colour, named groups and single keys as editable layers, presets, lights off and restore. Model detected from DMI.",
   "kinds": [
