@@ -9,10 +9,10 @@ are not (see [docs/v1-implementation-guide.md](docs/v1-implementation-guide.md),
 
 ## What this is
 
-A third-party Omarchy shell plugin that controls **per-key solid RGB** on:
-
-- Integrated MSI SteelSeries KLC (this GS75 Stealth 8SF, USB `1038:1122`)
-- External SteelSeries Apex-family keyboards
+A third-party Omarchy shell plugin that controls **per-key solid RGB** on the integrated MSI SteelSeries
+KLC (reference machine: GS75 Stealth 8SF, USB `1038:1122`; the keymap also lists the GE63/GE73/GE75/GS63/
+GS73/GX63/GT63/GL63 family it was ported from). External SteelSeries Apex-family keyboards are detected and
+reported in the panel but not driven yet; that backend goes through OpenRGB and is not part of v1.
 
 Typing already works. The gap is lighting. The laptop keyboard currently replays a Windows SteelSeries Engine profile from onboard memory. The plugin must not overwrite that until the user applies a map.
 
@@ -57,8 +57,11 @@ The base colour reads cyan in this photo but is actually blue-violet (`#4a5cff`)
 ## Install
 
 ```bash
-omarchy plugin add <git url> --enable
+omarchy plugin add https://github.com/dreamsgarage/OmasteelRGB.git --enable
 ```
+
+Later releases: `omarchy plugin update steelseries.keyboard`. See [docs/Publish-Guide.md](docs/Publish-Guide.md)
+for the release procedure and the readiness checks.
 
 Then grant the session user access to the keyboard's HID node — once, with sudo, never at runtime.
 The panel shows these exact commands (and a copy button) while access is missing:
