@@ -1,91 +1,55 @@
 # OmasteelRGB
 
-Omarchy 4 shell plugin for SteelSeries keyboard lighting.
+Per-key RGB for the MSI SteelSeries keyboard, from the Omarchy bar.
 
-Plugin id: `steelseries.keyboard`  
-Status: **v1 plugin built, running on the reference GS75 (2026-09-21).** Protocol validated on hardware
-2026-09-12. Python bridge, bar widget and panel are in; theme sync, the clickable schematic and Apex support
-are not (see [docs/v1-implementation-guide.md](docs/v1-implementation-guide.md), phases 7 and 8).
+![OmasteelRGB panel](preview.png)
 
-## What this is
+Pick a target, pick a colour, apply. Targets are the whole board, a named group (arrows, WASD, F row,
+numpad, modifiers and more) or a single key, and they stack: a base colour, groups over it, individual keys
+over those. Each layer stays editable on its own, so "make the arrows red" later does not undo "make the
+board blue". Colours are steady, many at once, and the controller keeps them in onboard memory after the
+shell, the plugin or the machine is gone.
 
-A third-party Omarchy shell plugin that controls **per-key solid RGB** on the internal MSI SteelSeries KLC
-controller (USB `1038:1122` and `1038:113a`). The plugin reads the machine's DMI product name, picks the
-matching keymap and shows the result in the panel; you can override it there or with
+Plugin id `steelseries.keyboard`. MIT licensed.
+
+## Compatibility
+
+The plugin drives the internal SteelSeries KLC controller found in MSI per-key RGB laptops, USB
+`1038:1122` and `1038:113a`. It reads the machine's DMI product name, picks the matching keymap and shows
+the result at the top of the panel; you can override it there or with
 `omarchy-shell steelseries.keyboard setModel GS66`.
 
 | Keymap | Models | Status |
 |---|---|---|
-| GE63 family (102 keys) | GS75 | Lit by this plugin on a GS75 Stealth 8SF |
-| | GE63, GE73, GE75, GS63, GS73, GX63, GT63, GL63 | Same table upstream (msi-perkeyrgb user reports), untested here |
-| GS65 (104 keys) | GS65 | Family table plus Home and End LEDs, from upstream; untested here |
-| GS66 (105 keys) | GS66 | GS65 table plus the power-key LED, from the Bergmann89 fork; untested here |
+| GE63 family, 102 keys | GS75 | Tested with this plugin on a GS75 Stealth 8SF |
+| | GE63, GE73, GE75, GS63, GS73, GX63, GT63, GL63 | Same table in msi-perkeyrgb, from user reports there; untested here |
+| GS65, 104 keys | GS65 | Family table plus Home and End LEDs, from msi-perkeyrgb; untested here |
+| GS66, 105 keys | GS66 | GS65 table plus the power-key LED, from the Bergmann89 fork; untested here |
 
-Any other MSI deck with the KLC gets the GE63 family table and a warning in the panel. If the keys light
-in the right places, tell us and it joins the list; if not, a new `keymaps/*.json` that `extends` one of
-these is the fix. Zone-based MSI keyboards (three zones, no per-key) are a different controller and out of
-scope. External SteelSeries Apex-family keyboards are detected and reported in the panel but not driven
-yet; that backend goes through OpenRGB and is not part of v1.
+Any other MSI laptop with the KLC gets the GE63 family table and a warning in the panel. If the keys light in
+the right places on yours, open an issue and it joins the list; if not, a new `keymaps/*.json` that
+`extends` one of these is the fix. Not supported: zone-based MSI keyboards (three zones, a different
+controller), and external SteelSeries Apex keyboards, which the panel detects and reports but does not drive.
 
-If you only want one colour across the whole board with theme sync, the marketplace already lists
-[Keyboard RGB](https://github.com/bruno-g-soares/omarchy-keyboard-rgb) for the same controller (verified on
-a GS66, USB `1038:113a`). OmasteelRGB exists for the many-colours-at-once case: base fill plus groups plus
-individual keys, kept as layers you can edit one at a time.
+If you want one colour across the board with theme sync, the marketplace already lists
+[Keyboard RGB](https://github.com/bruno-g-soares/omarchy-keyboard-rgb) for the same controller. OmasteelRGB
+is for the many-colours case.
 
-Typing already works. The gap is lighting. The laptop keyboard currently replays a Windows SteelSeries Engine profile from onboard memory. The plugin must not overwrite that until the user applies a map.
+## Requirements
 
-## v1 in one sentence
-
-Steady (non-animated) colors, **many colors at once**, as a stack of base fill + named groups + per-key overrides — matching the reference photo, not a single wash across the board. **Confirmed working on real hardware.**
-
-## Documents
-
-| File | Contents |
-|---|---|
-| [docs/v1-spec.md](docs/v1-spec.md) | Product definition, lighting model, capabilities, non-goals |
-| [docs/v1-design.md](docs/v1-design.md) | Architecture, backends, UX, safety, install shape |
-| [docs/v1-acceptance.md](docs/v1-acceptance.md) | Photo fixture, `gs75-photo` map, hardware checks |
-| [docs/v1-implementation-guide.md](docs/v1-implementation-guide.md) | **Build order, protocol details, gotchas** |
-| [docs/approved-plan.md](docs/approved-plan.md) | Full approved plan as captured (historical) |
-| [presets/gs75-photo.json](presets/gs75-photo.json) | Machine-readable acceptance preset |
-| [presets/gs75-custom.json](presets/gs75-custom.json) | Daily map: full red top row |
-| [presets/perkeyrgb/](presets/perkeyrgb/) | Same maps as msi-perkeyrgb configs (hardware-tested) |
-| [udev/70-steelseries-klc.rules](udev/70-steelseries-klc.rules) | hidraw access via `uaccess`, no sudo at runtime |
-| [docs/assets/keyboard.png](docs/assets/keyboard.png) | Reference photo of the Windows-saved layout |
-
-## Reference photo
-
-![GS75 SteelSeries KLC: blue-violet base, red Esc/Tab/Fn/Win/nav/numpad ops](docs/assets/keyboard.png)
-
-The base colour reads cyan in this photo but is actually blue-violet (`#4a5cff`); the camera carries a blue-cast.
-
-## Layout
-
-| Path | Role |
-|---|---|
-| `manifest.json` | Plugin manifest: `kinds: ["bar-widget"]`, entry point `Panel.qml` |
-| `Panel.qml` | Bar icon + popup panel. Left = panel, right = lights off, middle = restore. |
-| `Service.qml` | Owns the bridge process; JSON lines over stdin/stdout, re-reads state after every write |
-| `Model.js` | Pure helpers: hex validation, palette, group labels, the udev install commands |
-| `bridge/` | Python: detect, keymap, colour model, KLC HID driver, snapshot, JSON IPC |
-| `keymaps/` | Per-model key names, X11→HID translation and groups — data, not code. A map can `extends` another. |
-| `presets/` | Shipped colour maps, listed in the panel |
-| `tests/` | `python -m pytest`; nothing here opens the keyboard |
+- Omarchy 4 (Quattro).
+- Python 3 and the `python-hidapi` package: `omarchy pkg add python-hidapi`. The bridge uses nothing else
+  outside the standard library, and nothing is downloaded at install or runtime.
 
 ## Install
-
-Requirements: Omarchy 4 (Quattro), Python 3 and the `python-hidapi` package (`omarchy pkg add python-hidapi`).
-The bridge uses nothing else outside the standard library.
 
 ```bash
 omarchy plugin add https://github.com/dreamsgarage/OmasteelRGB.git --enable
 ```
 
-Later releases: `omarchy plugin update steelseries.keyboard`. See [docs/Publish-Guide.md](docs/Publish-Guide.md)
-for the release procedure and the readiness checks.
-
-Then grant the session user access to the keyboard's HID node — once, with sudo, never at runtime.
-The panel shows these exact commands (and a copy button) while access is missing:
+Then give your session user access to the keyboard's HID node. This is the only privileged step; the
+plugin itself never calls sudo or pkexec. The panel shows these exact commands, with a copy button, while
+access is missing:
 
 ```bash
 sudo install -m644 -o root -g root ~/.config/omarchy/plugins/steelseries.keyboard/udev/70-steelseries-klc.rules /etc/udev/rules.d/
@@ -95,15 +59,52 @@ sudo udevadm trigger --subsystem-match=hidraw --action=add
 ```
 
 The rule uses `TAG+="uaccess"` with `MODE="0660"`; the comments in the rule file explain why both matter.
-Enabling the plugin sends nothing to the keyboard. The first colour you apply replaces the profile the
-controller replays from onboard memory, and Linux cannot read that profile back — the panel says so and
-asks before that first write.
+Updates: `omarchy plugin update steelseries.keyboard`.
 
-Keyboard in the panel: `o` power, `r` restore, `p` photo preset, `b` board target, `e` edit a key, `Esc` close.
-IPC: `omarchy-shell steelseries.keyboard status|off|restore|preset <id>|setBase <hex>|setGroup <group> <hex>|setKey <key> <hex>|setModel <model|auto>|models`.
+## Before your first write
 
-There is no software brightness. The chassis `Fn` keys dim the backlight in firmware, and a plugin-side scale
-fought them (and the panel's `h`/`l` keys), so it was removed.
+Enabling the plugin sends nothing to the keyboard. Your keyboard is probably replaying a profile saved from
+Windows in onboard memory, and Linux cannot read that profile back. The first colour you apply replaces it
+for good. The panel says so and asks once before that write. If you want to keep the Windows look, note it
+down or photograph it first; the shipped `gs75-photo` preset is a reconstruction of one such look.
+
+## Use
+
+- Left-click the bar icon for the panel, right-click for lights off, middle-click to restore.
+- In the panel: choose Board, a group, or Key… and type a key name (`Esc`, `KP_Enter`, `PrtSc`; suggestions
+  appear as you type, case does not matter). Pick a swatch or enter a hex colour, then Apply.
+- Presets load a whole map at once. Two ship for the GS75: the daily map and the photo fixture.
+- The switch in the header turns the lights off and back on. Off is a stored blackout; on restores the
+  last map this plugin wrote.
+- Keys while the panel is open: `o` power, `r` restore, `p` photo preset, `b` board target, `e` edit a key,
+  `Esc` close.
+- Brightness is the chassis `Fn` keys' job; the plugin does not scale colours.
+
+Scripts and keybindings can use the IPC:
+
+```
+omarchy-shell steelseries.keyboard status
+omarchy-shell steelseries.keyboard off | restore
+omarchy-shell steelseries.keyboard preset gs75-custom
+omarchy-shell steelseries.keyboard setBase "#4a5cff"
+omarchy-shell steelseries.keyboard setGroup arrows "#ff2a2a"
+omarchy-shell steelseries.keyboard setKey Esc "#ff2a2a"
+omarchy-shell steelseries.keyboard setModel GS66     # or: auto
+omarchy-shell steelseries.keyboard models
+```
+
+IPC writes skip the panel confirmation; a script is explicit.
+
+## Safety
+
+- Only the steady-colour (`0x0e`) and commit (`0x09`) packets validated on hardware are sent. Hardware
+  effects (`0x0b`) are deliberately not implemented: a malformed effect packet bricked a backlight in the
+  upstream project.
+- Reports are paced the way msi-perkeyrgb does it, and every return value is checked, so a report the
+  controller drops is an error in the panel rather than a half-lit board.
+- The udev rule grants the active session user only, through `uaccess`. Nothing runs as root.
+- State lives in `~/.local/state/omarchy/steelseries-keyboard/` (last written map, model override). The
+  plugin does not touch any other configuration.
 
 ## Remove
 
@@ -116,25 +117,46 @@ controller stores it in onboard memory. Optional clean-up:
 
 ```bash
 sudo rm -f /etc/udev/rules.d/70-steelseries-klc.rules && sudo udevadm control --reload   # the device rule
-rm -rf ~/.local/state/omarchy/steelseries-keyboard                                       # the saved profile
+rm -rf ~/.local/state/omarchy/steelseries-keyboard                                       # saved map and override
 ```
+
+## How it works
+
+| Path | Role |
+|---|---|
+| `manifest.json` | Plugin manifest: `kinds: ["bar-widget"]`, entry point `Panel.qml` |
+| `Panel.qml` | Bar icon and popup panel |
+| `Service.qml` | Owns the bridge process; JSON lines over stdin/stdout, re-reads state after every write |
+| `Model.js` | Pure helpers: hex validation, palette, labels, the udev install commands |
+| `bridge/` | Python: device and machine detection, keymaps, colour model, KLC HID driver, snapshot, JSON IPC |
+| `keymaps/` | Per-model key names, X11 to HID translation and groups. Data, not code; a map can `extends` another |
+| `presets/` | Shipped colour maps, listed in the panel |
+| `udev/` | The hidraw access rule |
+| `tests/` | `python3 -m pytest`; nothing here opens the keyboard |
+| `docs/` | Spec, design, acceptance, implementation guide, publish guide |
+
+The protocol is the one msi-perkeyrgb (MIT, Askannz) reverse-engineered: four 524-byte feature reports,
+one per keyboard region, then a 64-byte commit. The packet builders are tested byte for byte against
+upstream when it is installed. QML never touches HID; the Python bridge does, in a process the shell can
+kill on its own.
 
 ## Development
 
 ```bash
-python -m pytest
+python3 -m pytest -q
 rsync -a --delete --exclude .git --exclude '.venv*' --exclude .pytest_cache --exclude __pycache__ \
   ./ ~/.config/omarchy/plugins/steelseries.keyboard/
-omarchy plugin validate ~/.config/omarchy/plugins/steelseries.keyboard
+omarchy restart shell        # after changing a .qml file
 ```
 
-The shell hot-reloads the plugin directory, but only re-instantiates objects: an edited `.qml` that the
-engine has already compiled keeps serving the old version (the reload's `Qt.clearComponentCache()` call is
-guarded on the function existing, and it does not). After changing `Panel.qml` or `Service.qml`, run
-`omarchy restart shell`. New files, `Model.js`, presets and the bridge pick up on plain reload.
-`omarchy plugin validate` refuses any folder containing a symlink, which is why it is run on the installed
-copy rather than a checkout with a `.venv`. Shell log: `journalctl --user _COMM=quickshell`.
+The shell hot-reloads the plugin directory but keeps serving an already compiled `.qml`, so restart after
+QML edits. `omarchy plugin validate` refuses any folder containing a symlink, which a Python virtualenv
+has; validate a clean export (`git archive HEAD | tar -x -C /tmp/x`), not the working folder. Shell log:
+`journalctl --user _COMM=quickshell`. Release and marketplace steps: [docs/Publish-Guide.md](docs/Publish-Guide.md).
+Changes: [CHANGELOG.md](CHANGELOG.md).
 
-## License
+## Credits and license
 
-MIT. See [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). The KLC protocol, keymaps and packet layout come from
+[msi-perkeyrgb](https://github.com/Askannz/msi-perkeyrgb) by Askannz (MIT); the GS66 table from the
+[Bergmann89 fork](https://github.com/Bergmann89/msi-perkeyrgb).

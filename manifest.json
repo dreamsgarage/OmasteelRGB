@@ -3,9 +3,9 @@
   "id": "steelseries.keyboard",
   "name": "SteelSeries keyboard lighting",
   "version": "0.1.0",
-  "author": "OmasteelRGB",
+  "author": "dreamsgarage",
   "license": "MIT",
-  "description": "Per-key steady RGB for the MSI SteelSeries KLC keyboard: base fill, named groups, per-key overrides, off and restore.",
+  "description": "Per-key RGB for the MSI SteelSeries KLC laptop keyboard: base colour, named groups and single keys as editable layers, presets, lights off and restore. Model detected from DMI.",
   "kinds": [
     "bar-widget"
   ],

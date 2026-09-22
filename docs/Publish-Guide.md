@@ -42,14 +42,14 @@ Rules from the marketplace's `SUBMISSION.md`, `VERIFICATION.md` and `SECURITY.md
 
 - Public GitHub repository with one plugin and `manifest.json` at the root. Ours: yes.
 - Root README with **installation and removal instructions**. Ours: the Remove section was added for this.
-- Root licence file, external dependencies documented. Ours: MIT; `python-hidapi` is named in the panel's
-  error text and the bridge, and should be named in the README requirements too.
+- Root licence file, external dependencies documented. Ours: MIT; `python-hidapi` is named in the README
+  requirements, the panel's error text and the bridge.
 - Globally unique plugin id outside `omarchy.*`. Ids are permanent and can never be reused, and the
   marketplace prefers a namespaced lowercase id such as `io.github.dreamsgarage.omasteelrgb`. Ours is
   `steelseries.keyboard`, not taken in the registry as of 2026-09-21. Changing it later means every user
   reinstalls, so decide before the first submission.
-- Optional root `preview.png` (or jpg, webp, avif); the marketplace generates card images from it. Ours: none
-  yet. A panel screenshot is the obvious candidate.
+- Optional root `preview.png` (or jpg, webp, avif); the marketplace generates card images from it. Ours: a
+  panel screenshot at the repository root. Retake it when the panel changes.
 - Manifest fields the listing reads: `schemaVersion`, `id`, `name`, `version` (max 64 chars), `author`,
   `description`, `kinds`, `entryPoints`. Ours has all of them.
 
@@ -60,33 +60,17 @@ Other. Tags are one to three of: ai, bar, education, games, hyprland, kids, laun
 power-management, quickshell, security, system, vpn, workspaces. For us: `Hardware` with `bar, quickshell`.
 
 Either the issue form <https://github.com/omacom/omarchy-plugin-marketplace/issues/new?template=submit-plugin.yml>
-or the CLI, with a body that keeps these six headings in this order:
+or the CLI. The ready-to-paste body is `docs/marketplace-submission.md`; it keeps the six required headings
+in order and reads:
 
-```markdown
-### Repository URL
-https://github.com/dreamsgarage/OmasteelRGB
-### Category
-Hardware
-### Tags
-bar, quickshell
-### Suggest a missing tag
-keyboard
-### Maintainer notes
-Per-key steady RGB for the MSI SteelSeries KLC (USB 1038:1122), tested on a GS75 Stealth 8SF. Python 3 +
-python-hidapi. Runtime never calls sudo or pkexec; the one-time udev rule install is the only privileged
-step and the user runs it by hand. Only the steady-colour (0x0e) and commit (0x09) packets are sent;
-hardware effects are deliberately not implemented.
-### Submission checklist
-- [x] The repository is public and contains installation and removal instructions.
-- [x] I have documented the plugin license and any external dependencies.
-- [x] I confirm that I own or have permission to submit this plugin and its preview assets.
-- [x] The plugin does not overwrite user configuration without explicit consent.
-- [x] I understand that approval is for listing and is not a security review.
-```
+(see the file; the maintainer notes there are the paragraph that will be scanned for `sudo`/`pkexec` mentions,
+so they state the negation explicitly)
 
 ```bash
-gh issue create --repo omacom/omarchy-plugin-marketplace --title "[Plugin]: OmasteelRGB" --body-file /tmp/submission.md
+gh issue create --repo omacom/omarchy-plugin-marketplace --title "[Plugin]: OmasteelRGB" --body-file docs/marketplace-submission.md
 ```
+
+Submit from a commit that is already pushed and that you will not move until the bot has validated it.
 
 **What happens next**
 
@@ -135,18 +119,20 @@ gh issue create --repo omacom/omarchy-plugin-marketplace --title "[Plugin]: Omas
 
 ## Readiness checks for 0.1.0
 
-All run on 2026-09-21 against `main` after the rename to OmasteelRGB.
+Run on 2026-09-22 against `main`.
 
 | Check | How | Result |
 |---|---|---|
-| Unit tests | `python3 -m pytest -q` | 102 passed |
+| Unit tests | `python3 -m pytest -q` | 126 passed |
 | Manifest and layout | `git archive HEAD` into an empty folder, `omarchy plugin validate` on it | valid |
 | Real install path | removed the rsync dev copy, `omarchy plugin add <url> --enable --yes` | cloned, validated, enabled in the right section |
-| Update path | `omarchy plugin update steelseries.keyboard --yes` on the fresh clone | "up to date" |
-| Shell loads it | `omarchy-shell steelseries.keyboard status` after the add | device accessible, snapshot present, lights on |
+| Update path | `omarchy plugin update steelseries.keyboard --yes`, several times with real changes | fast-forwarded and validated each time |
+| Shell loads it | `omarchy-shell steelseries.keyboard status` after each update | device accessible, snapshot present, model detected from DMI |
 | Bridge runs from the install | `pgrep -af plugins/steelseries.keyboard/bridge` | one bridge per bar instance |
-| Hardware writes | off, restore, preset apply, group and key edits through the panel and IPC | all reports accepted by the controller; see the commit messages for what each fixed |
-| Docs match behaviour | README install URL, shortcuts, IPC list, no-brightness note | updated in this release |
+| Hardware writes | off, restore, preset apply, group and key edits through the panel and IPC | all reports accepted by the controller |
+| Model selection | detection on the GS75, override to GS66 and back over IPC, picker in the panel | as designed, no QML errors |
+| Marketplace repository rules | root manifest, README with install and removal, LICENSE, dependencies named, `preview.png`, unique id | all present |
+| Docs match behaviour | README, CHANGELOG, this guide, the submission body in `docs/marketplace-submission.md` | rewritten for 0.1.0 |
 
 Things the checks do **not** cover, and that the announcement should say plainly:
 
