@@ -1,4 +1,4 @@
-# omastellrgb - hidraw access for SteelSeries KLC keyboard lighting
+# OmasteelRGB - hidraw access for SteelSeries KLC keyboard lighting
 #
 # THE FILE NUMBER MATTERS. /usr/lib/udev/rules.d/73-seat-late.rules runs the
 # uaccess builtin at priority 73:

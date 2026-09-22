@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""omastellrgb bridge: line-delimited JSON over stdin/stdout.
+"""OmasteelRGB bridge: line-delimited JSON over stdin/stdout.
 
 QML never touches HID. Service.qml spawns this process and exchanges one JSON
 object per line, which keeps the shell responsive and the hardware access in a
@@ -309,7 +309,7 @@ class Bridge:
 def main(stdin=None, stdout=None, argv=None):
     if os.geteuid() == 0:
         sys.stderr.write(
-            "omastellrgb: refusing to run as root. Install udev/70-steelseries-klc.rules "
+            "OmasteelRGB: refusing to run as root. Install udev/70-steelseries-klc.rules "
             "so the active session user gets access instead.\n")
         return 1
 

@@ -1,4 +1,4 @@
-"""Keymap loading for omastellrgb.
+"""Keymap loading for OmasteelRGB.
 
 Keymaps are data, not code. Each file in keymaps/*.json describes one model
 family: the key names it exposes, the X11 -> HID keycode translation, and the

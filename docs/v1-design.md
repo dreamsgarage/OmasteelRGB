@@ -1,4 +1,4 @@
-# omastellrgb v1 design
+# OmasteelRGB v1 design
 
 **Status:** approved  
 Companion to [v1-spec.md](v1-spec.md).

@@ -3,7 +3,7 @@
   "id": "steelseries.keyboard",
   "name": "SteelSeries keyboard lighting",
   "version": "0.1.0",
-  "author": "omastellrgb",
+  "author": "OmasteelRGB",
   "license": "MIT",
   "description": "Per-key steady RGB for the MSI SteelSeries KLC keyboard: base fill, named groups, per-key overrides, off and restore.",
   "kinds": [

@@ -1,4 +1,4 @@
-# omastellrgb v1 product spec
+# OmasteelRGB v1 product spec
 
 **Status:** approved  
 **Plugin id:** `steelseries.keyboard`  

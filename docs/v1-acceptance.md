@@ -1,4 +1,4 @@
-# omastellrgb v1 acceptance
+# OmasteelRGB v1 acceptance
 
 **Status:** approved  
 Reference machine: MSI GS75 Stealth 8SF, Omarchy 4.0.3, SteelSeries KLC `1038:1122`.

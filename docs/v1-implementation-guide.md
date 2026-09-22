@@ -1,4 +1,4 @@
-# omastellrgb v1 implementation guide
+# OmasteelRGB v1 implementation guide
 
 **Status:** ready to build
 **Prerequisite:** [v1-spec.md](v1-spec.md), [v1-design.md](v1-design.md), [v1-acceptance.md](v1-acceptance.md)

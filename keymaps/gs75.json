@@ -17,7 +17,7 @@
   ],
   "provenance": {
     "x11_to_hid": "Ported from msi-perkeyrgb protocol_data/msi_keymaps.py (MIT, Askannz).",
-    "groups": "omastellrgb. nav/wasd/numpad_ops are additions and enter_esc gains KP_Enter; the rest mirror upstream aliases.",
+    "groups": "OmasteelRGB. nav/wasd/numpad_ops are additions and enter_esc gains KP_Enter; the rest mirror upstream aliases.",
     "validated": "2026-09-12 on MSI GS75 Stealth 8SF, USB 1038:1122."
   },
   "notes": {

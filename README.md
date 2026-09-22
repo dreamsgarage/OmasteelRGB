@@ -1,4 +1,4 @@
-# omastellrgb
+# OmasteelRGB
 
 Omarchy 4 shell plugin for SteelSeries keyboard lighting.
 

@@ -1,4 +1,4 @@
-"""Colour resolution for omastellrgb.
+"""Colour resolution for OmasteelRGB.
 
 A profile is a stack. Later layers win:
 
