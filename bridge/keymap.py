@@ -42,6 +42,12 @@ class Keymap:
                     "keymap %r alias %r points at unknown key %r" % (source or self.id, alias, target)
                 )
 
+        # Typed names arrive in whatever case the user used: "esc", "kp_delete",
+        # "prtsc". Exact spelling wins; otherwise match ignoring case.
+        self._folded = {}
+        for name in list(self.keys) + list(self.aliases):
+            self._folded.setdefault(name.lower(), name)
+
         # Group membership must reference real keys, or a colour silently vanishes.
         for group, members in self.groups.items():
             unknown = [m for m in members if self.canonical(m) not in self.keys]
@@ -55,8 +61,11 @@ class Keymap:
         self._group_order = {name: i for i, name in enumerate(self.groups)}
 
     def canonical(self, key):
-        """Resolve a friendly name to its canonical one: 'PrtSc' -> 'Print'."""
-        return self.aliases.get(key, key)
+        """Resolve a friendly name to its canonical one: 'PrtSc' -> 'Print', 'esc' -> 'Esc'."""
+        name = str(key or "").strip()
+        if name not in self.keys and name not in self.aliases:
+            name = self._folded.get(name.lower(), name)
+        return self.aliases.get(name, name)
 
     def hid_for(self, key):
         """HID keycode for a key name, or None if this key has no addressable LED."""

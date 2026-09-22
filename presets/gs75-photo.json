@@ -7,7 +7,6 @@
     "usb": "1038:1122",
     "layout": "iso-es-physical"
   },
-  "brightness": 100,
   "base": "#4a5cff",
   "groups": {
     "nav": "#ff2a2a",

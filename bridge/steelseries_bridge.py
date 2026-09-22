@@ -12,7 +12,6 @@ Protocol - one request per line, one response per line:
     {"cmd": "set_base",  "color": "#4a5cff"}
     {"cmd": "set_group", "group": "arrows", "color": "#ff2a2a"}
     {"cmd": "set_key",   "key": "Esc", "color": "#ff2a2a"}
-    {"cmd": "brightness","value": 60}
     {"cmd": "off"}
     {"cmd": "restore"}
     {"cmd": "state"}
@@ -35,7 +34,9 @@ from bridge import detect, keymap as keymap_mod, klc_hid, model, snapshot  # noq
 DEFAULT_MODEL = "GS75"
 PRESET_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "presets")
 # The layer stack. Everything else in a preset document is metadata.
-PROFILE_FIELDS = ("base", "groups", "keys", "brightness")
+PROFILE_FIELDS = ("base", "groups", "keys")
+# Base fill for a first edit when no preset is flagged "default".
+DEFAULT_BASE = "#4a5cff"
 
 
 class Bridge:
@@ -64,8 +65,13 @@ class Bridge:
         return device
 
     def current_profile(self):
+        """The stored layer stack, dropping fields this version no longer
+        knows (a snapshot from before brightness was removed still carries
+        one; it must not ride along into the next write)."""
         stored = snapshot.load()
-        return stored["profile"] if stored else None
+        if not stored:
+            return None
+        return {k: v for k, v in stored["profile"].items() if k in PROFILE_FIELDS}
 
     def write(self, profile, device=None):
         """Resolve, translate, and push a profile to the hardware."""
@@ -79,19 +85,42 @@ class Bridge:
             reports = dev.apply(hid_colors)
         return {"keys": len(hid_colors), "reports": reports}
 
-    def mutate(self, change):
+    def default_preset(self):
+        """The preset flagged "default": true, or None."""
+        for preset in self.cmd_presets({})["presets"]:
+            if preset["default"]:
+                return preset
+        return None
+
+    def starting_profile(self):
+        """What a partial edit builds on when this plugin has never written.
+
+        The controller cannot be read, so the rest of the board has to come
+        from somewhere. The default preset is the plugin's known-good look;
+        without one, a plain base fill. Never black: "I changed one key and
+        the whole board went dark" is the wrong first experience.
+        """
+        preset = self.default_preset()
+        if preset is not None:
+            return json.loads(json.dumps(preset["profile"]))
+        return {"base": DEFAULT_BASE}
+
+    def mutate(self, change, fresh=None):
         """Apply a partial edit on top of the stored profile.
 
         Editing a group or a single key still writes the whole resolved map,
         because the controller has no notion of our layer stack - but the
         stored profile keeps the layers so later edits compose correctly.
+
+        With no stored profile the edit lands on `fresh` if given, else on
+        `starting_profile()`.
         """
         profile = self.current_profile()
         if profile is None:
-            profile = {"base": "#000000", "groups": {}, "keys": {}, "brightness": 100}
+            profile = dict(fresh) if fresh is not None else self.starting_profile()
+        profile.setdefault("base", DEFAULT_BASE)
         profile.setdefault("groups", {})
         profile.setdefault("keys", {})
-        profile.setdefault("brightness", 100)
         change(profile)
         return profile
 
@@ -114,12 +143,15 @@ class Bridge:
     def cmd_state(self, _req):
         stored = snapshot.load()
         devices = detect.scan()
+        start = self.default_preset()
         return {
             "devices": devices,
             "hasSnapshot": stored is not None,
             "profile": stored["profile"] if stored else None,
             "snapshotPath": snapshot.path(),
             "canRestore": stored is not None,
+            # What a first group/key edit fills the rest of the board with.
+            "startingFrom": {"id": start["id"], "name": start["name"]} if start else None,
             "message": None if stored else
                        "This plugin has never written a profile. Linux cannot read the "
                        "existing map off the controller, so there is nothing to restore.",
@@ -149,6 +181,7 @@ class Bridge:
                     "name": doc.get("name") or name[:-5],
                     "description": doc.get("description") or "",
                     "model": (doc.get("hardware") or {}).get("model"),
+                    "default": doc.get("default") is True,
                     "profile": profile,
                 })
         return {"presets": out}
@@ -167,7 +200,9 @@ class Bridge:
 
     def cmd_set_base(self, req):
         color = model.format_color(model.parse_color(req.get("color")))
-        profile = self.mutate(lambda p: p.__setitem__("base", color))
+        # "Board" as the first write means paint the whole board, so it does
+        # not inherit the default preset's groups the way a key edit does.
+        profile = self.mutate(lambda p: p.__setitem__("base", color), fresh={"base": color})
         device = self.klc_device()
         result = self.write(profile, device)
         snapshot.save(profile, device_id=device["id"])
@@ -176,9 +211,23 @@ class Bridge:
     def cmd_set_group(self, req):
         group = req.get("group")
         km = self.keymap()
-        km.group_members(group)  # validates, raises KeymapError with the known list
+        members = set(km.group_members(group))  # validates, raises KeymapError with the known list
         color = model.format_color(model.parse_color(req.get("color")))
-        profile = self.mutate(lambda p: p["groups"].__setitem__(group, color))
+
+        def change(p):
+            p["groups"][group] = color
+            # The edit must be visible. Per-key overrides and smaller groups
+            # inside this one sit above it in the stack and would mask it
+            # completely - "Esc + Enter" did nothing while both keys were
+            # pinned red. The latest edit wins, so drop what it covers.
+            for key in list(p["keys"]):
+                if km.canonical(key) in members:
+                    del p["keys"][key]
+            for other in list(p["groups"]):
+                if other != group and other in km.groups and set(km.group_members(other)) <= members:
+                    del p["groups"][other]
+
+        profile = self.mutate(change)
         device = self.klc_device()
         result = self.write(profile, device)
         snapshot.save(profile, device_id=device["id"])
@@ -191,17 +240,6 @@ class Bridge:
             raise ValueError("unknown key %r for keymap %s" % (req.get("key"), km.id))
         color = model.format_color(model.parse_color(req.get("color")))
         profile = self.mutate(lambda p: p["keys"].__setitem__(key, color))
-        device = self.klc_device()
-        result = self.write(profile, device)
-        snapshot.save(profile, device_id=device["id"])
-        return result
-
-    def cmd_brightness(self, req):
-        value = model.parse_brightness(req.get("value"))
-        profile = self.current_profile()
-        if profile is None:
-            raise RuntimeError("brightness needs a profile: apply a map first")
-        profile["brightness"] = value
         device = self.klc_device()
         result = self.write(profile, device)
         snapshot.save(profile, device_id=device["id"])
@@ -231,7 +269,7 @@ class Bridge:
         "detect": cmd_detect, "state": cmd_state, "keymap": cmd_keymap,
         "presets": cmd_presets,
         "apply": cmd_apply, "set_base": cmd_set_base, "set_group": cmd_set_group,
-        "set_key": cmd_set_key, "brightness": cmd_brightness,
+        "set_key": cmd_set_key,
         "off": cmd_off, "restore": cmd_restore,
     }
 

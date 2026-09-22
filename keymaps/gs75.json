@@ -17,13 +17,14 @@
   ],
   "provenance": {
     "x11_to_hid": "Ported from msi-perkeyrgb protocol_data/msi_keymaps.py (MIT, Askannz).",
-    "groups": "omastellrgb. nav/wasd/numpad_ops are additions; the rest mirror upstream aliases.",
+    "groups": "omastellrgb. nav/wasd/numpad_ops are additions and enter_esc gains KP_Enter; the rest mirror upstream aliases.",
     "validated": "2026-09-12 on MSI GS75 Stealth 8SF, USB 1038:1122."
   },
   "notes": {
     "nav": "Four keys on this chassis, not six. Home (X11 110) and End (X11 115) have no addressable LED - they are Fn-layer functions.",
     "characters": "Includes ISO_Extra (X11 94), the <> key present on ISO layouts. Upstream omits it.",
-    "delete": "Delete (nav) and KP_Delete (numpad) are distinct keys and may hold different colours."
+    "delete": "Delete (nav) and KP_Delete (numpad) are distinct keys and may hold different colours.",
+    "enter_esc": "Both Enter keys: Return on the main block and KP_Enter on the numpad. Upstream's alias covered Esc and Return only."
   },
   "keys": {
     "Esc": 9,
@@ -270,7 +271,8 @@
   "groups": {
     "enter_esc": [
       "Esc",
-      "Return"
+      "Return",
+      "KP_Enter"
     ],
     "wasd": [
       "W",

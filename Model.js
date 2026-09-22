@@ -12,7 +12,7 @@ var PALETTE = [
 ]
 
 var GROUP_LABELS = {
-  enter_esc: "Esc + Enter",
+  enter_esc: "Esc + Enters",
   wasd: "WASD",
   arrows: "Arrows",
   nav: "Nav",
@@ -82,4 +82,30 @@ function accessCommands(pluginDir) {
     "sudo rm -f /etc/udev/rules.d/99-msi-rgb.rules && " +
     "sudo udevadm control --reload && " +
     "sudo udevadm trigger --subsystem-match=hidraw --action=add"
+}
+
+// Key names matching what the user has typed so far, exact prefix matches
+// first, then substring matches, canonical names before aliases. Empty input
+// lists nothing: 130 chips is noise, not help.
+function keySuggestions(typed, keyNames, aliasNames, limit) {
+  var q = String(typed || "").trim().toLowerCase()
+  if (!q) return []
+  var names = (keyNames || []).concat(aliasNames || [])
+  var prefix = [], inside = []
+  for (var i = 0; i < names.length; i++) {
+    var n = String(names[i])
+    var l = n.toLowerCase()
+    if (l === q) return [n]
+    if (l.indexOf(q) === 0) prefix.push(n)
+    else if (l.indexOf(q) >= 0) inside.push(n)
+  }
+  return prefix.concat(inside).slice(0, limit || 12)
+}
+
+function knownKey(typed, keyNames, aliasNames) {
+  var q = String(typed || "").trim().toLowerCase()
+  if (!q) return false
+  var names = (keyNames || []).concat(aliasNames || [])
+  for (var i = 0; i < names.length; i++) if (String(names[i]).toLowerCase() === q) return true
+  return false
 }

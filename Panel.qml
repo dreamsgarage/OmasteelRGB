@@ -19,7 +19,9 @@ Panel {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   readonly property bool ready: keyboard.hasDevice && keyboard.accessible
-  readonly property bool canEdit: ready && keyboard.hasSnapshot && !keyboard.busy
+  readonly property bool canEdit: ready && !keyboard.busy
+  readonly property string startingName: keyboard.startingFrom ? String(keyboard.startingFrom.name) : ""
+  readonly property var keySuggestions: Model.keySuggestions(keyField.text, keyboard.keyNames, keyboard.aliasNames, 12)
   readonly property string accentHex: Model.normalizeHex(String(Color.accent))
   readonly property var swatches: Model.palette(accentHex)
   readonly property string accessCommands: Model.accessCommands(keyboard.pluginDir)
@@ -39,7 +41,9 @@ Panel {
   property string target: "board"
   property bool confirmPending: false
   property var pendingWrite: null
-  property int sliderPreview: -1
+  // True while the pending first write is a partial edit (group or key)
+  // that the bridge seeds from the default preset.
+  property bool pendingIsPartial: false
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -56,10 +60,11 @@ Panel {
 
   // The first write destroys the profile the controller replays from Windows,
   // and nothing on Linux can read it back. Ask once, inline, before that write.
-  function requestWrite(fn) {
+  function requestWrite(fn, partial) {
     if (!ready) return
     if (!keyboard.hasSnapshot) {
       pendingWrite = fn
+      pendingIsPartial = partial === true
       confirmPending = true
       return
     }
@@ -78,6 +83,12 @@ Panel {
     confirmPending = false
   }
 
+  function selectKey(name) {
+    target = "key"
+    keyField.text = name
+    Qt.callLater(function() { hexField.forceActiveFocus(); hexField.selectAll() })
+  }
+
   function applyColor() {
     var hex = Model.normalizeHex(hexField.text)
     if (!hex) {
@@ -93,16 +104,11 @@ Panel {
         keyboard.lastError = "Name a key first, like Esc or KP_Delete"
         return
       }
-      requestWrite(function() { keyboard.setKey(key, hex) })
+      requestWrite(function() { keyboard.setKey(key, hex) }, true)
     } else {
       var group = target
-      requestWrite(function() { keyboard.setGroup(group, hex) })
+      requestWrite(function() { keyboard.setGroup(group, hex) }, true)
     }
-  }
-
-  function nudgeBrightness(delta) {
-    if (!canEdit) return
-    keyboard.setBrightness(Model.clamp(keyboard.brightness + delta, 0, 100))
   }
 
   // `off` commits a blackout to onboard memory, so it is a first write like
@@ -126,9 +132,23 @@ Panel {
     function toggle(): void { root.toggle() }
     function off(): string { keyboard.off(); return "ok" }
     function restore(): string { keyboard.restore(); return "ok" }
-    function brightness(value: int): string { keyboard.setBrightness(value); return "ok" }
-    function brightnessUp(): string { root.nudgeBrightness(10); return "ok" }
-    function brightnessDown(): string { root.nudgeBrightness(-10); return "ok" }
+    // IPC callers are explicit, like `off` and `preset` above: no panel
+    // confirmation, the bridge seeds a first partial edit from the default preset.
+    function setBase(color: string): string {
+      var hex = Model.normalizeHex(color)
+      if (!hex) return "bad colour, want #rrggbb"
+      keyboard.setBase(hex); return "ok"
+    }
+    function setGroup(group: string, color: string): string {
+      var hex = Model.normalizeHex(color)
+      if (!hex) return "bad colour, want #rrggbb"
+      keyboard.setGroup(group, hex); return "ok"
+    }
+    function setKey(key: string, color: string): string {
+      var hex = Model.normalizeHex(color)
+      if (!hex) return "bad colour, want #rrggbb"
+      keyboard.setKey(key, hex); return "ok"
+    }
     function preset(id: string): string { return keyboard.loadPreset(id) ? "ok" : "unknown preset" }
     function status(): string {
       return JSON.stringify({
@@ -136,8 +156,7 @@ Panel {
         accessible: keyboard.accessible,
         hasSnapshot: keyboard.hasSnapshot,
         lightsOn: keyboard.lightsOn,
-        base: keyboard.baseColor,
-        brightness: keyboard.brightness
+        base: keyboard.baseColor
       })
     }
   }
@@ -190,12 +209,18 @@ Panel {
       blocked: hexField.activeFocus || keyField.activeFocus
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
+      // h/j/k/l and the arrows never reach textKey: the catcher turns them
+      // into moves, which this panel does not use.
       onTextKey: function(t) {
         if (t === "o" || t === "O") root.togglePower()
         else if (t === "r" || t === "R") { if (root.ready && keyboard.hasSnapshot) keyboard.restore() }
-        else if (t === "h" || t === "H") root.nudgeBrightness(-5)
-        else if (t === "l" || t === "L") root.nudgeBrightness(5)
         else if (t === "p" || t === "P") root.loadPreset("gs75-photo")
+        else if (t === "b" || t === "B") root.target = "board"
+        else if (t === "e" || t === "E") {
+          // Edit one key: jump to the key target and start typing its name.
+          root.target = "key"
+          Qt.callLater(function() { keyField.forceActiveFocus(); keyField.selectAll() })
+        }
       }
 
       Flickable {
@@ -331,6 +356,19 @@ Panel {
               wrapMode: Text.WordWrap
             }
 
+            Text {
+              visible: root.pendingIsPartial
+              textFormat: Text.PlainText
+              width: parent.width
+              text: root.startingName !== ""
+                ? "Everything you have not set starts from the \"" + root.startingName + "\" preset. Change the rest afterwards, key by key or with Board."
+                : "Everything you have not set starts as the plugin's default blue-violet fill."
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              wrapMode: Text.WordWrap
+            }
+
             Row {
               spacing: Style.space(8)
 
@@ -347,77 +385,6 @@ Panel {
                 fontFamily: root.fontFamily
                 onClicked: root.cancelWrite()
               }
-            }
-          }
-
-          PanelSeparator {
-            visible: root.ready
-            foreground: root.foreground
-          }
-
-          // ---------- brightness ----------
-          Column {
-            visible: root.ready
-            width: parent.width
-            spacing: Style.space(6)
-
-            Row {
-              width: parent.width
-
-              PanelSectionHeader {
-                text: "BRIGHTNESS"
-                foreground: root.foreground
-                fontFamily: root.fontFamily
-              }
-
-              Item { width: parent.width - parent.children[0].implicitWidth - brightnessValue.implicitWidth; height: 1 }
-
-              Text {
-                id: brightnessValue
-                textFormat: Text.PlainText
-                text: (root.sliderPreview >= 0 ? root.sliderPreview : keyboard.brightness) + "%"
-                color: root.canEdit ? root.foreground : root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-              }
-            }
-
-            CursorSurface {
-              width: parent.width
-              height: brightnessSlider.implicitHeight + Style.spacing.controlGap
-              foreground: root.foreground
-              outline: true
-              opacity: root.canEdit ? 1.0 : 0.45
-
-              PanelSlider {
-                id: brightnessSlider
-                bar: root.bar
-                anchors.fill: parent
-                anchors.leftMargin: Style.space(6)
-                anchors.rightMargin: Style.space(6)
-                enabled: root.canEdit
-                minimum: 0
-                maximum: 100
-                step: 1
-                integer: true
-                value: keyboard.brightness
-                onMoved: function(v) { root.sliderPreview = Math.round(v) }
-                onReleased: function(v) {
-                  root.sliderPreview = -1
-                  keyboard.setBrightness(v)
-                }
-              }
-            }
-
-            Text {
-              visible: !keyboard.hasSnapshot
-              textFormat: Text.PlainText
-              width: parent.width
-              text: "Brightness scales the plugin's own map. Set a board colour or load a preset first."
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              wrapMode: Text.WordWrap
             }
           }
 
@@ -457,9 +424,9 @@ Panel {
                   required property var modelData
                   text: Model.groupLabel(modelData)
                   selected: root.target === modelData
-                  enabled: keyboard.hasSnapshot
+                  enabled: root.ready
                   opacity: enabled ? 1.0 : 0.45
-                  tooltipText: keyboard.hasSnapshot ? "" : "Set a board colour first"
+                  tooltipText: (keyboard.groups[modelData] || []).join(", ")
                   foreground: root.foreground
                   fontFamily: root.fontFamily
                   fontSize: Style.font.bodySmall
@@ -470,7 +437,7 @@ Panel {
               Button {
                 text: "Key…"
                 selected: root.target === "key"
-                enabled: keyboard.hasSnapshot
+                enabled: root.ready
                 opacity: enabled ? 1.0 : 0.45
                 foreground: root.foreground
                 fontFamily: root.fontFamily
@@ -486,9 +453,45 @@ Panel {
               id: keyField
               visible: root.target === "key"
               width: parent.width
-              placeholderText: "Key name — Esc, Tab, F5, KP_Delete, Super…"
+              placeholderText: "Key name — esc, tab, f5, kp_delete, super…"
               foreground: root.foreground
-              onAccepted: root.applyColor()
+              onAccepted: {
+                // Enter on a partial name picks the first suggestion, so
+                // "es" + Enter targets Esc instead of failing as unknown.
+                if (root.keySuggestions.length > 0 && !Model.knownKey(text, keyboard.keyNames, keyboard.aliasNames))
+                  text = root.keySuggestions[0]
+                root.applyColor()
+              }
+            }
+
+            Flow {
+              visible: root.target === "key" && root.keySuggestions.length > 0
+              width: parent.width
+              spacing: Style.space(4)
+
+              Repeater {
+                model: root.keySuggestions
+                Button {
+                  required property var modelData
+                  text: modelData
+                  selected: keyField.text === modelData
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.caption
+                  onClicked: root.selectKey(modelData)
+                }
+              }
+            }
+
+            Text {
+              visible: root.target === "key" && keyField.text.trim() !== "" && root.keySuggestions.length === 0
+              textFormat: Text.PlainText
+              width: parent.width
+              text: "No key called \"" + keyField.text.trim() + "\". Letters are A-Z, digits 0-9; others like Esc, Return, Space, KP_Enter, Prior (PgUp), Next (PgDn)."
+              color: root.urgent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
             }
           }
 
@@ -604,7 +607,7 @@ Panel {
             visible: root.ready && !keyboard.hasSnapshot && !root.confirmPending
             textFormat: Text.PlainText
             width: parent.width
-            text: keyboard.snapshotMessage
+            text: keyboard.snapshotMessage + " Pick a target and a colour, or load a preset, to start the plugin's own map."
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption

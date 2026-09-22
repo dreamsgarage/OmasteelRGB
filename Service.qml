@@ -24,8 +24,10 @@ Item {
   property bool hasSnapshot: false
   property var profile: null
   property string snapshotMessage: ""
+  // The preset a first group/key edit fills the rest of the board
+  // with, as {id, name}, or null when no preset is flagged default.
+  property var startingFrom: null
   readonly property string baseColor: profile && profile.base ? String(profile.base) : ""
-  readonly property int brightness: profile && isFinite(Number(profile.brightness)) ? Number(profile.brightness) : 100
   // The controller cannot be read back. The board boots lit, and only an
   // `off` this plugin sent turns this false.
   property bool lightsOn: true
@@ -33,6 +35,7 @@ Item {
   property var groups: ({})
   property var groupNames: []
   property var keyNames: []
+  property var aliasNames: []
   property var presets: []
 
   property bool busy: false
@@ -116,6 +119,7 @@ Item {
     hasSnapshot = r.hasSnapshot === true
     profile = r.profile || null
     snapshotMessage = r.message ? String(r.message) : ""
+    startingFrom = r.startingFrom || null
   }
 
   function refresh() {
@@ -128,6 +132,7 @@ Item {
       root.groups = r.groups || {}
       root.groupNames = Object.keys(r.groups || {})
       root.keyNames = r.keys || []
+      root.aliasNames = Object.keys(r.aliases || {})
     })
   }
 
@@ -173,14 +178,6 @@ Item {
     _write({ cmd: "set_key", key: key, color: color }, function() {
       root.lightsOn = true
       root.flash(key + " set to " + color)
-    })
-  }
-
-  function setBrightness(value) {
-    var pct = Math.round(Model.clamp(value, 0, 100))
-    _write({ cmd: "brightness", value: pct }, function() {
-      root.lightsOn = true
-      root.flash("Brightness " + pct + "%")
     })
   }
 

@@ -49,6 +49,14 @@ Unused fragment slots are 12 zero bytes. Region ids:
 Write all four regions, then commit. The controller stores the result in onboard memory, so lighting survives
 reboot with no daemon running.
 
+**Pace the reports.** The controller ACKs each report at USB level and parses it afterwards; a report that
+arrives while it is still busy is dropped with no error on the host. Upstream sleeps 10 ms after every send
+(`hidapi_wrapping.py`: "The RGB controller derps if commands are sent too fast"). Without it a four-region write
+loses regions at random, which shows up as "restore brought back the modifiers but the letters stayed dark".
+The commit is slower still, since it stores the map, so give it ~250 ms before the next write starts
+(`klc_hid.COMMIT_SETTLE`). Also check every return value: python-hidapi returns -1 for a refused report instead
+of raising, and a driver that ignores it reports success for a map that never landed.
+
 **Do not implement opcode `0x0b` effects.** Upstream reverted them after a malformed packet bricked a backlight
 (Askannz/msi-perkeyrgb#24). v1 is steady colors only.
 
@@ -131,22 +139,22 @@ drivers/klc_hid.py   build_region_packet(region, {hid_keycode: rgb}) -> bytes
 Port the packet builders from `msiprotocol.py`. Group the resolved map by region, emit four feature reports, then
 the commit packet.
 
-Brightness is a global RGB scale applied *after* resolution — there is no separate backlight channel on this
-hardware. Clamp in the bridge, not only in QML.
+There is no brightness layer. It was built as a global RGB scale applied after resolution, then removed: the
+chassis `Fn` keys already dim the backlight in firmware and the software scale fought them. `resolve()` ignores
+a leftover `brightness` field and the bridge strips it from old snapshots.
 
-Rate-limit writes: a 524-byte report per region per frame while dragging a color slider will flood the
-controller. Coalesce drags and write on release.
+Rate-limit writes: a 524-byte report per region per frame from a dragged control will flood the controller.
+Coalesce and write on release.
 
 Test against a fake HID device asserting exact byte sequences before touching real hardware.
 
 ### Phase 4 — snapshot and restore
 
-First apply writes a full `{key: color}` snapshot plus brightness to
+First apply writes the layer stack (base, groups, keys) to
 `~/.local/state/omarchy/steelseries-keyboard/snapshot.json`.
 
 Restore reapplies that map. If no snapshot exists, the UI must say *"Linux cannot read the original profile off
-this controller"* rather than guessing a color. Define what `off` means relative to `brightness = 0` — they look
-identical on this hardware but should not be the same state.
+this controller"* rather than guessing a color.
 
 ### Phase 5 — JSON IPC
 
@@ -154,10 +162,10 @@ Line-delimited JSON on stdin/stdout. One request per line, one response per line
 
 ```json
 {"cmd": "detect"}
-{"cmd": "apply", "base": "#4a5cff", "groups": {...}, "keys": {...}, "brightness": 100}
+{"cmd": "apply", "profile": {"base": "#4a5cff", "groups": {...}, "keys": {...}}}
 {"cmd": "set_group", "group": "arrows", "color": "#ff2a2a"}
 {"cmd": "set_key", "key": "Esc", "color": "#ff2a2a"}
-{"cmd": "off"} {"cmd": "restore"} {"cmd": "brightness", "value": 60}
+{"cmd": "off"} {"cmd": "restore"}
 ```
 
 Validate hex and ranges here, not only in the UI.

@@ -49,7 +49,7 @@ Brightness is a global 0–100 scale applied after the map.
 | `f_row` | F1–F12 |
 | `modifiers` | Ctrl Alt Shift (not Super) |
 | `fn` | Fn |
-| `enter_esc` | Enter Esc |
+| `enter_esc` | Esc, Enter, numpad Enter |
 | `characters` | letter/punctuation block excluding num row |
 
 > **`nav` is 4 keys on this hardware, not 6.** X11 keycodes 110 (`Home`) and 115 (`End`) are absent from the

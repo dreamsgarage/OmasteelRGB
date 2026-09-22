@@ -129,19 +129,13 @@ def test_gs75_custom_reddens_the_whole_top_row(km):
     assert sum(1 for c in out.values() if c == RED) == 32
 
 
-# --- brightness ------------------------------------------------------------
+# --- no brightness layer ---------------------------------------------------
 
-def test_brightness_scales_every_channel(km):
-    out = model.resolve({"base": "#c8c8c8", "brightness": 50}, km)
-    assert set(out.values()) == {(100, 100, 100)}
-
-
-def test_brightness_100_is_lossless(km):
-    assert model.resolve({"base": "#4a5cff", "brightness": 100}, km)["Q"] == BASE
-
-
-def test_brightness_zero_is_black(km):
-    assert set(model.resolve({"base": "#ffffff", "brightness": 0}, km).values()) == {(0, 0, 0)}
+def test_brightness_field_is_ignored(km):
+    """A leftover brightness value must not dim anything: the chassis Fn keys
+    own dimming, and an old snapshot may still carry the field."""
+    assert model.resolve({"base": "#c8c8c8", "brightness": 50}, km)["Q"] == (200, 200, 200)
+    assert not hasattr(model, "apply_brightness")
 
 
 # --- validation ------------------------------------------------------------
@@ -154,12 +148,6 @@ def test_bad_colours_rejected(bad):
 
 def test_hex_accepted_with_or_without_hash():
     assert model.parse_color("#ff2a2a") == model.parse_color("ff2a2a") == RED
-
-
-@pytest.mark.parametrize("bad", [-1, 101, "high", None])
-def test_bad_brightness_rejected(bad):
-    with pytest.raises(model.ProfileError):
-        model.parse_brightness(bad)
 
 
 def test_unknown_key_is_rejected_with_a_suggestion(km):
@@ -189,3 +177,11 @@ def test_blackout_is_all_zero(km):
     out = model.blackout(km)
     assert len(out) == 102
     assert set(out.values()) == {(0, 0, 0)}
+
+
+def test_enter_esc_covers_both_enter_keys(km):
+    """User report: painting "Esc + Enter" left the numpad Enter untouched."""
+    assert km.group_members("enter_esc") == ["Esc", "Return", "KP_Enter"]
+    out = model.resolve({"base": "#4a5cff", "groups": {"enter_esc": "#2aff5a"}}, km)
+    assert out["Esc"] == out["Return"] == out["KP_Enter"] == (0x2A, 0xFF, 0x5A)
+    assert out["KP_Add"] == BASE, "the rest of the numpad stays on the base"

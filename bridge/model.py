@@ -6,8 +6,14 @@ A profile is a stack. Later layers win:
     2. named groups   smallest group wins where groups overlap
     3. per-key        individual overrides, always final
 
-Brightness is a global scale applied after the map, because the KLC has no
-separate backlight channel.
+The stack describes how a stored profile resolves. Editing is a separate
+matter: the bridge makes the latest edit visible by removing the per-key
+overrides and nested groups that a group edit covers (see
+Bridge.cmd_set_group), otherwise a pinned key would swallow the change.
+
+There is no brightness layer: the KLC has no separate backlight channel and
+the chassis Fn keys already handle dimming in firmware, so a software scale
+only fought them.
 
 Everything here is pure: no hardware, no I/O. That is what makes the colour
 model testable without a keyboard attached.
@@ -40,25 +46,6 @@ def parse_color(value):
 
 def format_color(rgb):
     return "#%02x%02x%02x" % tuple(rgb)
-
-
-def parse_brightness(value):
-    try:
-        pct = int(value)
-    except (TypeError, ValueError):
-        raise ProfileError("brightness must be an integer 0-100, got %r" % (value,)) from None
-    if not 0 <= pct <= 100:
-        raise ProfileError("brightness must be 0-100, got %d" % pct)
-    return pct
-
-
-def apply_brightness(colors, brightness):
-    """Scale every channel. 100 is unchanged, 0 is off."""
-    pct = parse_brightness(brightness)
-    if pct == 100:
-        return dict(colors)
-    scale = pct / 100.0
-    return {k: tuple(int(round(c * scale)) for c in rgb) for k, rgb in colors.items()}
 
 
 def resolve(profile, keymap):
@@ -105,7 +92,7 @@ def resolve(profile, keymap):
     if not colors:
         raise ProfileError("profile sets no colours: needs at least a base, a group or a key")
 
-    return apply_brightness(colors, profile.get("brightness", 100))
+    return colors
 
 
 def to_hid_map(colors, keymap):

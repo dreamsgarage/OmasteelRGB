@@ -1,13 +1,13 @@
 {
   "id": "gs75-custom",
   "name": "GS75 daily map",
+  "default": true,
   "description": "Photo fixture plus a fully red top row: F1-F12 and PrtSc/ScrLk/Pause join Esc. Blue-violet base elsewhere.",
   "hardware": {
     "model": "GS75",
     "usb": "1038:1122",
     "layout": "iso-es-physical"
   },
-  "brightness": 100,
   "base": "#4a5cff",
   "groups": {
     "f_row": "#ff2a2a",

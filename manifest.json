@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "author": "omastellrgb",
   "license": "MIT",
-  "description": "Per-key steady RGB for the MSI SteelSeries KLC keyboard: base fill, named groups, per-key overrides, brightness, off and restore.",
+  "description": "Per-key steady RGB for the MSI SteelSeries KLC keyboard: base fill, named groups, per-key overrides, off and restore.",
   "kinds": [
     "bar-widget"
   ],

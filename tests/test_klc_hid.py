@@ -167,3 +167,156 @@ def test_matches_upstream_for_the_acceptance_fixture(km):
 @needs_upstream
 def test_commit_matches_upstream():
     assert klc_hid.build_commit_packet() == bytes(make_refresh_packet())
+
+
+# --- sending ---------------------------------------------------------------
+#
+# The controller drops reports that arrive too fast and hidapi signals a
+# refused report with -1 rather than an exception. These pin the pacing and
+# the checking, with a fake hid module in place of the library.
+
+class FakeHidDevice:
+    def __init__(self, log, refuse=None):
+        self.log = log
+        # {call index: return value} to simulate a refused report.
+        self.refuse = refuse or {}
+        self.calls = 0
+
+    def open(self, vid, pid):
+        self.log.append(("open", vid, pid))
+
+    def open_path(self, path):
+        self.log.append(("open_path", path))
+
+    def _result(self, data):
+        self.calls += 1
+        return self.refuse.get(self.calls, len(data))
+
+    def send_feature_report(self, data):
+        self.log.append(("feature", bytes(data)[2], len(data)))
+        return self._result(data)
+
+    def write(self, data):
+        self.log.append(("write", bytes(data)[0], len(data)))
+        return self._result(data)
+
+    def close(self):
+        self.log.append(("close",))
+
+
+class FakeHid:
+    def __init__(self, refuse=None):
+        self.log = []
+        self.refuse = refuse
+
+    def device(self):
+        return FakeHidDevice(self.log, self.refuse)
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 1000.0
+        self.slept = []
+
+    def sleep(self, seconds):
+        self.slept.append(round(seconds, 4))
+        self.now += seconds
+
+    def __call__(self):
+        return self.now
+
+
+@pytest.fixture(autouse=True)
+def fresh_controller():
+    """The settle timestamp is process-wide; tests must not leak it."""
+    klc_hid.KLCDevice._last_commit = None
+    yield
+    klc_hid.KLCDevice._last_commit = None
+
+
+def open_fake(refuse=None):
+    fake, clock = FakeHid(refuse), FakeClock()
+    dev = klc_hid.KLCDevice(hid_module=fake, sleep=clock.sleep, clock=clock)
+    return dev, fake, clock
+
+
+def full_map(km):
+    return model.to_hid_map(model.resolve({"base": "#4a5cff"}, km), km)
+
+
+def test_every_report_is_paced(km):
+    dev, fake, clock = open_fake()
+    sent = dev.apply(full_map(km))
+    assert sent == 5
+    # Four feature reports, region order fixed, then the commit as an output report.
+    kinds = [entry[0] for entry in fake.log if entry[0] in ("feature", "write")]
+    assert kinds == ["feature"] * 4 + ["write"]
+    regions = [entry[1] for entry in fake.log if entry[0] == "feature"]
+    assert regions == [klc_hid.REGION_IDS[r] for r in ("alphanum", "enter", "modifiers", "numpad")]
+    # One REPORT_DELAY after each of the five sends, nothing else.
+    assert clock.slept == [klc_hid.REPORT_DELAY] * 5
+
+
+def test_refused_region_raises_and_never_commits(km):
+    dev, fake, clock = open_fake(refuse={2: -1, 3: -1, 4: -1})
+    with pytest.raises(klc_hid.KLCError, match="enter region"):
+        dev.apply(full_map(km))
+    assert not any(entry[0] == "write" for entry in fake.log), "a half-written map must not be latched"
+
+
+def test_short_write_counts_as_refused(km):
+    dev, fake, clock = open_fake(refuse={1: 100, 2: 100, 3: 100})
+    with pytest.raises(klc_hid.KLCError, match="returned 100 for 524 bytes"):
+        dev.apply(full_map(km))
+
+
+def test_refused_report_is_retried_then_accepted(km):
+    dev, fake, clock = open_fake(refuse={1: -1})
+    assert dev.apply(full_map(km)) == 5
+    features = [entry for entry in fake.log if entry[0] == "feature"]
+    assert len(features) == 5, "alphanum once refused, once accepted, then three more regions"
+    assert clock.slept[:3] == [klc_hid.REPORT_DELAY, klc_hid.RETRY_DELAY, klc_hid.REPORT_DELAY]
+
+
+def test_refused_commit_raises():
+    dev, fake, clock = open_fake(refuse={2: -1, 3: -1, 4: -1})
+    with pytest.raises(klc_hid.KLCError, match="commit report"):
+        dev.apply({4: (1, 2, 3)})
+
+
+def test_back_to_back_writes_wait_for_the_commit_to_settle(km):
+    """off then restore in quick succession: the second write must give the
+    controller COMMIT_SETTLE after the first commit before it starts."""
+    dev, fake, clock = open_fake()
+    dev.apply(full_map(km))
+    first_commit = clock.now
+    clock.now += 0.05
+    dev.apply(full_map(km))
+    # The first sleep of the second write is the remaining settle time.
+    settle = clock.slept[5]
+    assert settle == pytest.approx(klc_hid.COMMIT_SETTLE - 0.05, abs=1e-6)
+    assert first_commit + klc_hid.COMMIT_SETTLE <= first_commit + 0.05 + settle + 1e-9
+
+
+def test_settle_is_shared_across_device_objects(km):
+    """The bridge opens a fresh KLCDevice per command; the pause must survive that."""
+    dev1, fake1, clock = open_fake()
+    dev1.apply(full_map(km))
+    dev2 = klc_hid.KLCDevice(hid_module=FakeHid(), sleep=clock.sleep, clock=clock)
+    dev2.apply(full_map(km))
+    assert clock.slept[5] == pytest.approx(klc_hid.COMMIT_SETTLE, abs=1e-6)
+
+
+def test_isolated_write_does_not_wait(km):
+    dev, fake, clock = open_fake()
+    dev.apply(full_map(km))
+    clock.now += 5.0
+    before = len(clock.slept)
+    dev.apply(full_map(km))
+    assert clock.slept[before:] == [klc_hid.REPORT_DELAY] * 5
+
+
+def test_report_delay_matches_upstream():
+    """msi-perkeyrgb has shipped DELAY = 0.01 for years; drift here is a hardware regression."""
+    assert klc_hid.REPORT_DELAY == pytest.approx(0.01)
+    assert klc_hid.COMMIT_SETTLE >= klc_hid.REPORT_DELAY

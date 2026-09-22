@@ -16,7 +16,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from bridge import snapshot  # noqa: E402
+from bridge import keymap as keymap_mod, model, snapshot  # noqa: E402
 from bridge import steelseries_bridge as bridge_mod  # noqa: E402
 
 
@@ -125,14 +125,8 @@ def test_restore_without_a_snapshot_explains_why():
     assert "never written" in response["error"]
 
 
-def test_brightness_without_a_profile_is_refused():
-    response = run(['{"cmd":"brightness","value":50}'])[0]
-    assert response["ok"] is False
-    assert "apply a map first" in response["error"]
-
-
 def test_snapshot_round_trips():
-    profile = {"base": "#4a5cff", "groups": {"arrows": "#ff2a2a"}, "brightness": 80}
+    profile = {"base": "#4a5cff", "groups": {"arrows": "#ff2a2a"}}
     snapshot.save(profile, device_id="1038:1122")
     stored = snapshot.load()
     assert stored["profile"] == profile
@@ -178,11 +172,13 @@ def test_set_group_rejects_an_unknown_group():
     assert response["ok"] is False and "unknown group" in response["error"]
 
 
-@pytest.mark.parametrize("value", [-1, 101, "loud"])
-def test_brightness_range_is_enforced(value):
+def test_brightness_command_is_gone():
+    """Brightness was removed: it fought the chassis Fn dimming keys. The
+    bridge must not quietly accept the old command."""
     snapshot.save({"base": "#4a5cff"})
-    response = run(['{"cmd":"brightness","value":%s}' % json.dumps(value)])[0]
+    response = run(['{"cmd":"brightness","value":50}'])[0]
     assert response["ok"] is False
+    assert "unknown command" in response["error"]
 
 
 def test_locked_device_reports_needs_access_with_a_fix(monkeypatch):
@@ -222,10 +218,10 @@ def test_apply_snapshots_only_the_layer_stack(bridge, monkeypatch):
     """A preset document carries notes and provenance; the snapshot must not."""
     monkeypatch.setattr(bridge, "klc_device", lambda: {"id": "1038:1122", "product_id": 0x1122})
     monkeypatch.setattr(bridge, "write", lambda profile, device=None: {"keys": 1, "reports": 2})
-    doc = {"base": "#4a5cff", "notes": {"x": "y"}, "hardware": {"model": "GS75"}, "brightness": 100}
+    doc = {"base": "#4a5cff", "notes": {"x": "y"}, "hardware": {"model": "GS75"}}
     response = bridge.handle({"cmd": "apply", "profile": doc})
     assert response["ok"] is True
-    assert snapshot.load()["profile"] == {"base": "#4a5cff", "brightness": 100}
+    assert snapshot.load()["profile"] == {"base": "#4a5cff"}
 
 
 def test_ready_handshake_is_opt_in():
@@ -238,3 +234,126 @@ def test_ready_handshake_is_opt_in():
     assert lines[0] == {"ok": True, "event": "ready"}
     assert lines[1]["id"] == 1
     assert "event" not in run(['{"cmd":"detect"}'])[0]
+
+
+# --- first partial edit --------------------------------------------------
+
+@pytest.fixture
+def fake_hardware(bridge, monkeypatch):
+    """A present, accessible KLC whose writes are recorded, never sent."""
+    written = []
+    monkeypatch.setattr(bridge, "klc_device", lambda: {"id": "1038:1122", "product_id": 0x1122})
+
+    def write(profile, device=None):
+        written.append(json.loads(json.dumps(profile)))
+        return {"keys": 1, "reports": 2}
+
+    monkeypatch.setattr(bridge, "write", write)
+    return written
+
+
+def test_state_names_the_starting_preset():
+    response = run(['{"cmd":"state"}'])[0]
+    assert response["startingFrom"] == {"id": "gs75-custom", "name": "GS75 daily map"}
+
+
+def test_first_key_edit_starts_from_the_default_preset(bridge, fake_hardware):
+    """One key on a never-written board must not leave the other 101 black.
+    The rest of the map comes from the preset flagged default."""
+    response = bridge.handle({"cmd": "set_key", "key": "Esc", "color": "#00ff00"})
+    assert response["ok"] is True
+    stored = snapshot.load()["profile"]
+    assert stored["keys"]["Esc"] == "#00ff00"
+    assert stored["base"] == "#4a5cff"
+    assert stored["groups"]["f_row"] == "#ff2a2a"
+    assert stored["keys"]["Tab"] == "#ff2a2a"
+    assert fake_hardware[0] == stored
+
+
+def test_first_group_edit_starts_from_the_default_preset(bridge, fake_hardware):
+    response = bridge.handle({"cmd": "set_group", "group": "wasd", "color": "#00ff00"})
+    assert response["ok"] is True
+    stored = snapshot.load()["profile"]
+    assert stored["groups"]["wasd"] == "#00ff00"
+    assert stored["groups"]["arrows"] == "#ff2a2a"
+
+
+def test_first_board_fill_paints_the_whole_board(bridge, fake_hardware):
+    """'Board' means the whole board: a first base fill does not drag the
+    default preset's red groups along."""
+    response = bridge.handle({"cmd": "set_base", "color": "#00ff00"})
+    assert response["ok"] is True
+    stored = snapshot.load()["profile"]
+    assert stored == {"base": "#00ff00", "groups": {}, "keys": {}}
+
+
+def test_stale_brightness_in_an_old_snapshot_is_dropped(bridge, fake_hardware):
+    """Snapshots written before brightness was removed carry the field; the
+    next edit must neither scale colours by it nor store it again."""
+    snapshot.save({"base": "#4a5cff", "groups": {}, "keys": {}, "brightness": 98})
+    bridge.handle({"cmd": "set_key", "key": "Esc", "color": "#ff0000"})
+    stored = snapshot.load()["profile"]
+    assert "brightness" not in stored
+    assert "brightness" not in fake_hardware[0]
+    assert stored["keys"] == {"Esc": "#ff0000"}
+
+
+def test_group_edit_wins_over_pinned_keys_inside_it(bridge, fake_hardware):
+    """The user's own report: Esc and Return were pinned per key, so painting
+    the "Esc + Enter" group changed nothing on the board."""
+    snapshot.save({"base": "#4a5cff", "groups": {"arrows": "#ff2a2a"},
+                   "keys": {"Esc": "#ff2a2a", "Return": "#4a5cff", "Tab": "#ff2a2a"}})
+    response = bridge.handle({"cmd": "set_group", "group": "enter_esc", "color": "#2aff5a"})
+    assert response["ok"] is True, response
+    stored = snapshot.load()["profile"]
+    assert stored["groups"] == {"arrows": "#ff2a2a", "enter_esc": "#2aff5a"}
+    assert stored["keys"] == {"Tab": "#ff2a2a"}, "only the covered keys are dropped"
+    km = keymap_mod.load("GS75")
+    resolved = model.resolve(stored, km)
+    assert resolved["Esc"] == resolved["Return"] == (0x2A, 0xFF, 0x5A)
+    assert resolved["Tab"] == (0xFF, 0x2A, 0x2A)
+
+
+def test_group_edit_drops_groups_nested_inside_it(bridge, fake_hardware):
+    """WASD sits inside Letters. Painting Letters must recolour W A S D too."""
+    snapshot.save({"base": "#4a5cff", "groups": {"wasd": "#ff2a2a", "arrows": "#ff2a2a"}, "keys": {}})
+    bridge.handle({"cmd": "set_group", "group": "characters", "color": "#2aff5a"})
+    stored = snapshot.load()["profile"]
+    assert "wasd" not in stored["groups"]
+    assert stored["groups"]["arrows"] == "#ff2a2a", "an unrelated group is untouched"
+
+
+def test_key_edit_after_group_edit_still_wins(bridge, fake_hardware):
+    snapshot.save({"base": "#4a5cff", "groups": {}, "keys": {}})
+    bridge.handle({"cmd": "set_group", "group": "enter_esc", "color": "#2aff5a"})
+    bridge.handle({"cmd": "set_key", "key": "esc", "color": "#ff0000"})
+    stored = snapshot.load()["profile"]
+    km = keymap_mod.load("GS75")
+    resolved = model.resolve(stored, km)
+    assert resolved["Esc"] == (255, 0, 0)
+    assert resolved["Return"] == (0x2A, 0xFF, 0x5A)
+
+
+def test_later_edits_compose_on_the_snapshot(bridge, fake_hardware):
+    bridge.handle({"cmd": "set_base", "color": "#00ff00"})
+    bridge.handle({"cmd": "set_key", "key": "esc", "color": "#ff0000"})
+    stored = snapshot.load()["profile"]
+    assert stored["base"] == "#00ff00"
+    assert stored["keys"] == {"Esc": "#ff0000"}
+
+
+@pytest.mark.parametrize("typed, canonical", [
+    ("esc", "Esc"), ("ESC", "Esc"), ("escape", "Esc"), ("prtsc", "Print"),
+    ("kp_delete", "KP_Delete"), ("f5", "F5"), ("a", "A"), (" Space ", "Space"),
+])
+def test_key_names_are_case_insensitive(bridge, fake_hardware, typed, canonical):
+    response = bridge.handle({"cmd": "set_key", "key": typed, "color": "#ff0000"})
+    assert response["ok"] is True, response
+    assert canonical in snapshot.load()["profile"]["keys"]
+
+
+def test_unknown_key_is_still_refused(bridge, fake_hardware):
+    response = bridge.handle({"cmd": "set_key", "key": "Hyper", "color": "#ff0000"})
+    assert response["ok"] is False
+    assert "unknown key" in response["error"]
+    assert fake_hardware == []

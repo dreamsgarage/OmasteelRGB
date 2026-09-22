@@ -75,8 +75,11 @@ Enabling the plugin sends nothing to the keyboard. The first colour you apply re
 controller replays from onboard memory, and Linux cannot read that profile back — the panel says so and
 asks before that first write.
 
-Keyboard in the panel: `o` power, `r` restore, `h`/`l` brightness, `p` photo preset, `Esc` close.
-IPC: `omarchy-shell steelseries.keyboard status|off|restore|brightnessUp|brightnessDown|preset <id>`.
+Keyboard in the panel: `o` power, `r` restore, `p` photo preset, `b` board target, `e` edit a key, `Esc` close.
+IPC: `omarchy-shell steelseries.keyboard status|off|restore|preset <id>|setBase <hex>|setGroup <group> <hex>|setKey <key> <hex>`.
+
+There is no software brightness. The chassis `Fn` keys dim the backlight in firmware, and a plugin-side scale
+fought them (and the panel's `h`/`l` keys), so it was removed.
 
 ## Development
 
