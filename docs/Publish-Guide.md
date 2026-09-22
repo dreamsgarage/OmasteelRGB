@@ -51,7 +51,9 @@ Rules from the marketplace's `SUBMISSION.md`, `VERIFICATION.md` and `SECURITY.md
 - Optional root `preview.png` (or jpg, webp, avif); the marketplace generates card images from it. Ours: a
   panel screenshot at the repository root. Retake it when the panel changes.
 - Manifest fields the listing reads: `schemaVersion`, `id`, `name`, `version` (max 64 chars), `author`,
-  `description`, `kinds`, `entryPoints`. Ours has all of them.
+  `description`, `kinds`, `entryPoints`. Ours has all of them. The listing card shows `name`, which is
+  `OmasteelRGB` to match the repository and the issue title; the bar widget's own display name stays
+  "Keyboard lighting" because it appears in the shell's widget picker.
 
 **Submission**
 
