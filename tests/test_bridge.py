@@ -419,3 +419,46 @@ def test_unknown_key_is_still_refused(bridge, fake_hardware):
     assert response["ok"] is False
     assert "unknown key" in response["error"]
     assert fake_hardware == []
+
+
+# --- malformed input never takes the bridge down ---------------------------
+#
+# Service.qml is the only client, but the process must answer every line it
+# is sent: an uncaught exception fails every queued request with "bridge
+# exited" and the panel goes blank until the next click restarts it.
+
+@pytest.mark.parametrize("request_", [
+    {"cmd": "keymap", "model": [1]},
+    {"cmd": "keymap", "model": {"a": 1}},
+    {"cmd": "set_model", "model": ["x"]},
+    {"cmd": "set_group", "group": ["arrows"], "color": "#ffffff"},
+    {"cmd": "set_key", "key": {"x": 1}, "color": "#ffffff"},
+    {"cmd": "apply", "profile": {"base": [1, 2, [3]]}},
+    {"cmd": "apply", "profile": {"base": [1e400, 0, 0]}},
+    {"cmd": "apply", "profile": {"base": ["1", "2", None]}},
+    {"cmd": "apply", "profile": {"base": [1.5, 2, "3"]}},
+])
+def test_malformed_request_is_an_error_not_a_crash(bridge, monkeypatch, request_):
+    monkeypatch.setattr(bridge, "klc_device", lambda: {"id": "1038:1122", "product_id": 0x1122})
+    r = bridge.handle(dict(request_, id=5))
+    assert r["ok"] is False and r["error"] and r["id"] == 5
+
+
+def test_unexpected_exception_is_answered_not_raised(bridge, monkeypatch):
+    def boom(self, req):
+        raise KeyError("surprise")
+    monkeypatch.setitem(bridge.HANDLERS, "detect", boom)
+    r = bridge.handle({"cmd": "detect", "id": 1})
+    assert r["ok"] is False and "KeyError" in r["error"] and r["id"] == 1
+
+
+def test_tampered_state_files_do_not_lock_the_panel(tmp_path, bridge, monkeypatch):
+    from bridge import detect
+    monkeypatch.setattr(detect, "scan", lambda: [])
+    (tmp_path / "snapshot.json").write_text('{"profile": "notadict"}')
+    (tmp_path / "settings.json").write_text('{"model": ["GS66"]}')
+    r = bridge.handle({"cmd": "state"})
+    assert r["ok"] is True and r["hasSnapshot"] is False and r["model"]["source"] != "override"
+    assert bridge.handle({"cmd": "restore"})["ok"] is False
+    (tmp_path / "snapshot.json").write_text('{"profile": {"base": "#ffffff", "keys": "x"}}')
+    assert bridge_mod.Bridge().handle({"cmd": "state"})["hasSnapshot"] is False

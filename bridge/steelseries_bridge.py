@@ -148,7 +148,10 @@ class Bridge:
         return {"devices": detect.scan()}
 
     def cmd_keymap(self, req):
-        km = self.keymap(req.get("model"))
+        name = req.get("model")
+        if name is not None and not isinstance(name, str):
+            raise ValueError("'model' must be a string")
+        km = self.keymap(name)
         return {
             "keymap": km.id,
             "name": km.name,
@@ -175,6 +178,8 @@ class Bridge:
         return {"models": keymap_mod.catalog(), "machine": detect.machine(), "model": self.selection()}
 
     def cmd_set_model(self, req):
+        if req.get("model") is not None and not isinstance(req.get("model"), str):
+            raise ValueError("'model' must be a string")
         wanted = str(req.get("model") or "").strip()
         settings = snapshot.load_settings()
         if wanted.lower() in ("", "auto", "detect"):
@@ -265,6 +270,8 @@ class Bridge:
 
     def cmd_set_group(self, req):
         group = req.get("group")
+        if not isinstance(group, str):
+            raise ValueError("'group' must be a string")
         km = self.keymap()
         members = set(km.group_members(group))  # validates, raises KeymapError with the known list
         color = model.format_color(model.parse_color(req.get("color")))
@@ -350,6 +357,11 @@ class Bridge:
         except (keymap_mod.KeymapError, model.ProfileError, klc_hid.KLCError,
                 ValueError, RuntimeError, OSError) as exc:
             response["error"] = str(exc)
+        except Exception as exc:  # noqa: BLE001 - the loop must outlive any one request
+            # A request Service.qml did not expect to send, or a state file
+            # edited by hand. Answering keeps every queued request alive; a
+            # traceback would take the bridge and all of them down.
+            response["error"] = "internal error: %s: %s" % (type(exc).__name__, exc)
         else:
             collisions = [k for k in result if k in self.RESERVED]
             if collisions:

@@ -36,8 +36,12 @@ def load():
             doc = json.load(fh)
     except (OSError, ValueError):
         return None
-    if not isinstance(doc, dict) or "profile" not in doc:
+    if not isinstance(doc, dict) or not isinstance(doc.get("profile"), dict):
         return None
+    for field in ("groups", "keys"):
+        layer = doc["profile"].get(field)
+        if layer is not None and not isinstance(layer, dict):
+            return None
     return doc
 
 
@@ -90,7 +94,11 @@ def load_settings():
             doc = json.load(fh)
     except (OSError, ValueError):
         return {}
-    return doc if isinstance(doc, dict) else {}
+    if not isinstance(doc, dict):
+        return {}
+    if "model" in doc and not isinstance(doc["model"], str):
+        doc.pop("model")  # a hand-edited value that would break every command
+    return doc
 
 
 def save_settings(doc):

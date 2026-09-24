@@ -320,3 +320,29 @@ def test_report_delay_matches_upstream():
     """msi-perkeyrgb has shipped DELAY = 0.01 for years; drift here is a hardware regression."""
     assert klc_hid.REPORT_DELAY == pytest.approx(0.01)
     assert klc_hid.COMMIT_SETTLE >= klc_hid.REPORT_DELAY
+
+
+# --- which interface gets opened ------------------------------------------
+#
+# The KLC has two USB interfaces; only interface 0 (vendor-defined) takes the
+# feature reports, and the udev rule leaves interface 1 root-only. hid_open by
+# vendor:product takes whichever hidapi enumerates first.
+
+class FakeHidWithInterfaces(FakeHid):
+    def enumerate(self, vid, pid):
+        return [
+            {"path": b"/dev/hidraw1", "interface_number": 1, "vendor_id": vid, "product_id": pid},
+            {"path": b"/dev/hidraw0", "interface_number": 0, "vendor_id": vid, "product_id": pid},
+        ]
+
+
+def test_opens_the_vendor_interface_by_path_whatever_the_enumeration_order():
+    fake = FakeHidWithInterfaces()
+    klc_hid.KLCDevice(hid_module=fake, sleep=lambda s: None)
+    assert fake.log[0] == ("open_path", b"/dev/hidraw0")
+
+
+def test_falls_back_to_vendor_product_when_hidapi_cannot_enumerate():
+    fake = FakeHid()
+    klc_hid.KLCDevice(hid_module=fake, sleep=lambda s: None)
+    assert fake.log[0] == ("open", klc_hid.VENDOR_ID, 0x1122)

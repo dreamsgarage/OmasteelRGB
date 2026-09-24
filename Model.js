@@ -79,7 +79,8 @@ function clamp(value, lo, hi) {
 
 function accessCommands(pluginDir) {
   var rule = String(pluginDir || ".") + "/udev/70-steelseries-klc.rules"
-  return "sudo install -m644 -o root -g root '" + rule + "' /etc/udev/rules.d/ && " +
+  var quoted = "'" + rule.replace(/'/g, "'\\''") + "'"
+  return "sudo install -m644 -o root -g root " + quoted + " /etc/udev/rules.d/ && " +
     "sudo rm -f /etc/udev/rules.d/99-msi-rgb.rules && " +
     "sudo udevadm control --reload && " +
     "sudo udevadm trigger --subsystem-match=hidraw --action=add"

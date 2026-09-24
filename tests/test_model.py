@@ -146,6 +146,12 @@ def test_bad_colours_rejected(bad):
         model.parse_color(bad)
 
 
+@pytest.mark.parametrize("bad", [[1, 2, [3]], ["1", "2", None], [1.5, 2, "3"], [float("inf"), 0, 0], [True, 0, 0]])
+def test_list_colours_must_be_integers(bad):
+    with pytest.raises(model.ProfileError):
+        model.parse_color(bad)
+
+
 def test_hex_accepted_with_or_without_hash():
     assert model.parse_color("#ff2a2a") == model.parse_color("ff2a2a") == RED
 

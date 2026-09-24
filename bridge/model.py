@@ -31,7 +31,9 @@ class ProfileError(Exception):
 def parse_color(value):
     """'#4a5cff' or '4a5cff' -> (74, 92, 255). Raises on anything else."""
     if isinstance(value, (list, tuple)) and len(value) == 3:
-        rgb = tuple(int(c) for c in value)
+        if not all(isinstance(c, int) and not isinstance(c, bool) for c in value):
+            raise ProfileError("colour channels must be integers 0-255: %r" % (value,))
+        rgb = tuple(value)
         if any(c < 0 or c > 255 for c in rgb):
             raise ProfileError("colour channel out of range 0-255: %r" % (value,))
         return rgb

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- The udev rule grants only the KLC's vendor interface (USB interface `00`, the one that takes the colour
+  reports). Interface `01` is a Consumer Control input the plugin never touches and now stays root-only.
+  Reinstall the rule (the panel's copy button) to pick this up.
+- The bridge opens that interface by path rather than by vendor:product, so hidapi's enumeration order
+  cannot hand it the wrong node.
+- Malformed requests and hand-edited state files get an error response instead of taking the bridge and
+  every queued request down. List-form colours must be integers.
+- The install command shown in the panel quotes the plugin path safely.
+
 ## 0.1.0 — unreleased
 
 First release. Everything below was exercised on an MSI GS75 Stealth 8SF (SteelSeries KLC, USB `1038:1122`)

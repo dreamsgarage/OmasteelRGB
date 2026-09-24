@@ -33,6 +33,11 @@ import time
 
 VENDOR_ID = 0x1038
 KLC_PRODUCT_IDS = (0x1122, 0x113A)
+# The KLC exposes two USB interfaces. Interface 0 is vendor-defined and takes
+# the feature reports; interface 1 is a Consumer Control input that the udev
+# rule leaves root-only. Open by path so hidapi's enumeration order can never
+# hand us the wrong node.
+CONTROL_INTERFACE = 0
 
 SLOTS_PER_REGION = 42
 FRAGMENT_SIZE = 12
@@ -145,6 +150,17 @@ def build_packets(hid_colors):
     return [(r, build_region_packet(r, by_region[r])) for r in REGION_IDS if r in by_region]
 
 
+def control_path(hid_module, product_id):
+    """The hidraw path of the KLC's vendor interface, or None if hidapi cannot say."""
+    enumerate = getattr(hid_module, "enumerate", None)
+    if enumerate is None:
+        return None
+    for info in enumerate(VENDOR_ID, product_id):
+        if info.get("interface_number") == CONTROL_INTERFACE:
+            return info.get("path")
+    return None
+
+
 class KLCDevice:
     """Thin hidapi wrapper. Import of hidapi is deferred so the pure-model code
     and its tests run on machines without the library.
@@ -173,6 +189,7 @@ class KLCDevice:
         self._sleep = sleep or time.sleep
         self._clock = clock or time.monotonic
         self._device = hid_module.device()
+        path = path or control_path(hid_module, product_id)
         if path:
             self._device.open_path(path)
         else:

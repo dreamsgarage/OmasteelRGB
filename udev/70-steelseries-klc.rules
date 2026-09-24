@@ -17,8 +17,8 @@
 #   sudo udevadm trigger --subsystem-match=hidraw --action=add
 #
 # Verify:
-#   getfacl /dev/hidraw0        -> user:<you>:rw-
-#   udevadm info /dev/hidraw0   -> CURRENT_TAGS=:seat:uaccess:
+#   getfacl /dev/hidraw0        -> user:<you>:rw-   (interface 00 only)
+#   udevadm info /dev/hidraw0   -> CURRENT_TAGS=:seat:uaccess: and ID_USB_INTERFACE_NUM=00
 #
 # MODE is set explicitly, not left to the default. udev only chmods a node when
 # some rule computes a mode; with none, an existing node keeps whatever it had.
@@ -32,6 +32,14 @@
 # session user's ACL takes effect. This is the same MODE + uaccess pairing the
 # stock 60-steam-input.rules use.
 #
+# The KLC is a two-interface USB device. Interface 00 is vendor-defined (usage
+# page 0xFFC0) and takes the colour feature reports; it is the only node this
+# plugin opens. Interface 01 is a Consumer Control input (media and hotkey
+# events, bound by the kernel as a kbd device) and stays root-only: granting
+# it would let any process running as the user read those events raw.
+# ID_USB_INTERFACE_NUM is set on hidraw nodes by the 60-*.rules usb_id step,
+# so it is available here.
+#
 # idVendor and idProduct both live on the same USB parent, so one ATTRS match is valid.
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="1122", MODE="0660", TAG+="uaccess"
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="113a", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ENV{ID_USB_INTERFACE_NUM}=="00", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="1122", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ENV{ID_USB_INTERFACE_NUM}=="00", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="113a", MODE="0660", TAG+="uaccess"
