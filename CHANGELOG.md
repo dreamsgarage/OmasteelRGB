@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.1 — 2026-11-15
 
 - The udev rule grants only the KLC's vendor interface (USB interface `00`, the one that takes the colour
   reports). Interface `01` is a Consumer Control input the plugin never touches and now stays root-only.
